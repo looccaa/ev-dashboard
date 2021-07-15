@@ -1,8 +1,10 @@
 import { Component, Inject, OnInit } from '@angular/core';
-import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/forms';
+import { AbstractControl, FormControl, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
+import { Car } from 'types/Car';
+import { Tag } from 'types/Tag';
 
 import { AuthorizationService } from '../../../services/authorization.service';
 import { CentralServerService } from '../../../services/central-server.service';
@@ -13,8 +15,8 @@ import { CarsDialogComponent } from '../../../shared/dialogs/cars/cars-dialog.co
 import { TagsDialogComponent } from '../../../shared/dialogs/tags/tags-dialog.component';
 import { UsersDialogComponent } from '../../../shared/dialogs/users/users-dialog.component';
 import TenantComponents from '../../../types/TenantComponents';
-import { StartTransaction } from '../../../types/Transaction';
-import { UserDefaultTagCar, UserToken } from '../../../types/User';
+import { StartTransaction, StartTransactionErrorCode } from '../../../types/Transaction';
+import { User, UserDefaultTagCar, UserToken } from '../../../types/User';
 import { Utils } from '../../../utils/Utils';
 
 @Component({
@@ -24,6 +26,9 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
   public title = '';
   public chargeBoxID = '';
   public isCarComponentActive: boolean;
+  public selectedUser!: User;
+  public selectedTag!: Tag;
+  public selectedCar!: Car;
 
   public formGroup!: FormGroup;
   public user!: AbstractControl;
@@ -33,9 +38,12 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
   public tag!: AbstractControl;
   public tagID!: AbstractControl;
 
+  public errorMessage: string;
+
   public loggedUser: UserToken;
-  public isAdmin = false;
-  constructor(
+  public canListUsers = false;
+
+  public constructor(
     private dialog: MatDialog,
     private router: Router,
     public spinnerService: SpinnerService,
@@ -50,7 +58,7 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
     this.title = data.title;
     this.chargeBoxID = data.chargeBoxID;
     this.loggedUser = centralServerService.getLoggedUser();
-    this.isAdmin = this.authorizationService.isAdmin();
+    this.canListUsers = this.authorizationService.canListUsers();
     this.isCarComponentActive = this.componentService.isActive(TenantComponents.CAR);
     Utils.registerValidateCloseKeyEvents(this.dialogRef,
       this.startTransaction.bind(this), this.cancel.bind(this));
@@ -69,7 +77,6 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
         ])),
       car: new FormControl('',
         Validators.compose([
-
         ])),
       carID: new FormControl('',
         Validators.compose([
@@ -77,6 +84,7 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
       tag: new FormControl('',
         Validators.compose([
           Validators.required,
+          this.tagActiveValidator.bind(this),
         ])),
       tagID: new FormControl('',
         Validators.compose([
@@ -106,15 +114,28 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
       this.centralServerService.getUserDefaultTagCar(this.userID.value).subscribe((userDefaultTagCar: UserDefaultTagCar) => {
         this.spinnerService.hide();
         // Set Tag
+        this.selectedTag = userDefaultTagCar.tag;
         this.tag.setValue(userDefaultTagCar.tag ? Utils.buildTagName(userDefaultTagCar.tag) : '');
         this.tagID.setValue(userDefaultTagCar.tag?.id);
         // Set Car
+        this.selectedCar = userDefaultTagCar.car;
         this.car.setValue(userDefaultTagCar.car ? Utils.buildCarName(userDefaultTagCar.car, this.translateService, false) : '');
         this.carID.setValue(userDefaultTagCar.car?.id);
         // Update form
         this.formGroup.updateValueAndValidity();
-        this.formGroup.markAsPristine();
-        this.formGroup.markAllAsTouched();
+        if (Utils.isEmptyArray(userDefaultTagCar.errorCodes)) {
+          this.formGroup.markAsPristine();
+          this.formGroup.markAllAsTouched();
+        } else {
+          // Setting errors automatically disable start transaction button
+          this.formGroup.setErrors(userDefaultTagCar.errorCodes);
+          // Set mat-error message depending on errorCode provided
+          if (userDefaultTagCar.errorCodes[0] === StartTransactionErrorCode.BILLING_NO_PAYMENT_METHOD) {
+            this.errorMessage = this.translateService.instant('transactions.error_start_no_payment_method');
+          } else {
+            this.errorMessage = this.translateService.instant('transactions.error_start_general');
+          }
+        }
       }, (error) => {
         this.spinnerService.hide();
         Utils.handleHttpError(error, this.router, this.messageService,
@@ -137,6 +158,7 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
     const dialogRef = this.dialog.open(UsersDialogComponent, dialogConfig);
     // Register to the answer
     dialogRef.afterClosed().subscribe((result) => {
+      this.selectedUser = result[0].objectRef;
       this.user.setValue(Utils.buildUserFullName(result[0].objectRef));
       this.userID.setValue(result[0].key);
       this.tag.setValue('');
@@ -155,7 +177,6 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
       rowMultipleSelection: false,
       staticFilter: {
         UserID: this.userID.value,
-        Active: true,
         Issuer: true
       },
     };
@@ -164,7 +185,8 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
     // Register to the answer
     dialogRef.afterClosed().subscribe((result) => {
       if (result) {
-        this.tag.setValue(result[0].key);
+        this.selectedTag = result[0].objectRef;
+        this.tag.setValue(Utils.buildTagName(result[0].objectRef));
         this.tagID.setValue(result[0].key);
       }
     });
@@ -185,6 +207,7 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
     // Register to the answer
     dialogRef.afterClosed().subscribe((result) => {
       if (result) {
+        this.selectedCar = result[0].objectRef;
         this.car.setValue(Utils.buildCarName(result[0].objectRef, this.translateService, false));
         this.carID.setValue(result[0].key);
       }
@@ -202,5 +225,14 @@ export class ChargingStationsStartTransactionDialogComponent implements OnInit {
 
   public cancel() {
     this.dialogRef.close();
+  }
+
+  private tagActiveValidator(tagControl: AbstractControl): ValidationErrors | null {
+    // Check the object
+    if (!this.selectedTag || this.selectedTag.active) {
+      // Ok
+      return null;
+    }
+    return { inactive: true };
   }
 }

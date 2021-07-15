@@ -5,7 +5,10 @@ import { TranslateService } from '@ngx-translate/core';
 import { StatusCodes } from 'http-status-codes';
 import * as moment from 'moment';
 import { ConfigService } from 'services/config.service';
+import { DialogMode } from 'types/Authorization';
+import { HTTPError } from 'types/HTTPError';
 import { Tag } from 'types/Tag';
+import { User, UserToken } from 'types/User';
 
 import { CentralServerService } from '../services/central-server.service';
 import { DialogService } from '../services/dialog.service';
@@ -13,19 +16,72 @@ import { MessageService } from '../services/message.service';
 import { AppUnitPipe } from '../shared/formatters/app-unit.pipe';
 import { Address } from '../types/Address';
 import { Car, CarCatalog, CarConverter, CarType } from '../types/Car';
-import { ChargePoint, ChargingStation, ChargingStationPowers, Connector, CurrentType, StaticLimitAmps } from '../types/ChargingStation';
+import { ChargePoint, ChargingStation, ChargingStationPowers, Connector, CurrentType, StaticLimitAmps, Voltage } from '../types/ChargingStation';
 import { KeyValue } from '../types/GlobalType';
 import { MobileType } from '../types/Mobile';
-import { ButtonType } from '../types/Table';
-import { User, UserCar, UserToken } from '../types/User';
+import { ButtonType, TableDataSourceMode } from '../types/Table';
 import { Constants } from './Constants';
 
 export class Utils {
-  public static isEmptyArray(array: any[]): boolean {
+  public static  handleDialogMode(dialogMode: DialogMode, formGroup: FormGroup) {
+    switch (dialogMode) {
+      case DialogMode.CREATE:
+      case DialogMode.EDIT:
+        break;
+      case DialogMode.VIEW:
+        formGroup.disable();
+        break;
+    }
+  }
+
+  public static buildConnectorInfo(connector: Connector): string {
+    const info = [];
+    if (!Utils.isEmptyString(connector.errorCode)) {
+      info.push(connector.errorCode);
+    }
+    if (!Utils.isEmptyString(connector.vendorErrorCode)) {
+      info.push(connector.vendorErrorCode);
+    }
+    if (!Utils.isEmptyString(connector.info)) {
+      info.push(connector.info);
+    }
+    if (Utils.isEmptyArray(info)) {
+      info.push('-');
+    }
+    return info.join(' - ');
+  }
+
+  public static getTableDataSourceModeFromDialogMode(dialogMode: DialogMode): TableDataSourceMode {
+    switch (dialogMode) {
+      case DialogMode.CREATE:
+      case DialogMode.EDIT:
+        return TableDataSourceMode.READ_WRITE;
+      case DialogMode.VIEW:
+        return TableDataSourceMode.READ_ONLY;
+      default:
+        return TableDataSourceMode.READ_ONLY;
+    }
+  }
+
+  public static isEmptyObject(object: any): boolean {
+    if (!object) {
+      return true;
+    }
+    return Object.keys(object).length === 0;
+  }
+
+  public static isEmptyArray(array: any): boolean {
+    if (!array) {
+      return true;
+    }
     if (Array.isArray(array) && array.length > 0) {
       return false;
     }
     return true;
+  }
+
+  public static isEmptyString(str: string): boolean {
+    return str ? str.length === 0 : true;
   }
 
   public static getConnectorLetterFromConnectorID(connectorID: number): string {
@@ -64,12 +120,11 @@ export class Utils {
     save: (data: Data) => void, close: () => void) {
     // listen to keystroke
     dialogRef.keydownEvents().subscribe((keydownEvents) => {
-      if (keydownEvents && keydownEvents.code === 'Escape') {
+      if (keydownEvents?.code === 'Escape') {
         close();
       }
-      if (keydownEvents && keydownEvents.code === 'Enter') {
+      if (keydownEvents?.code === 'Enter') {
         if (formGroup.valid && formGroup.dirty) {
-          // tslint:disable-next-line: no-unsafe-any
           save(formGroup.getRawValue());
         }
       }
@@ -222,11 +277,12 @@ export class Utils {
         chargingStation, chargePoint, connectorId, result.currentAmp);
       return result;
     }
+    const chargingStationAmperageLimit = Utils.getChargingStationAmperageLimit(chargingStation, chargePoint, connectorId);
     // Use Limit Amps
     if (forChargingProfile) {
-      result.maxAmp = Utils.getChargingStationAmperageLimit(chargingStation, chargePoint, connectorId);
+      result.maxAmp = chargingStationAmperageLimit;
     } else {
-      result.currentAmp = Utils.getChargingStationAmperageLimit(chargingStation, chargePoint, connectorId);
+      result.currentAmp = chargingStationAmperageLimit;
       result.maxAmp = Utils.getChargingStationAmperage(chargingStation, chargePoint, connectorId);
     }
     // Default
@@ -319,8 +375,8 @@ export class Utils {
     return totalAmps;
   }
 
-  // tslint:disable-next-line: cyclomatic-complexity
-  public static getChargingStationPower(chargingStation: ChargingStation, chargePoint: ChargePoint, connectorId = 0): number {
+  // eslint-disable-next-line complexity
+  public static getChargingStationPower(chargingStation: ChargingStation, chargePoint?: ChargePoint, connectorId = 0): number {
     let totalPower = 0;
     if (chargingStation) {
       // Check at charge point level
@@ -406,7 +462,27 @@ export class Utils {
     return 1;
   }
 
-  public static getChargingStationVoltage(chargingStation: ChargingStation, chargePoint?: ChargePoint, connectorId = 0): number {
+  public static adjustChargePoints(chargingStation: ChargingStation) {
+    for (const chargePoint of chargingStation.chargePoints) {
+      chargePoint.amperage = 0;
+      chargePoint.power = 0;
+      for (const connectorID of chargePoint.connectorIDs) {
+        const connector = Utils.getConnectorFromID(chargingStation, connectorID);
+        if (chargePoint.cannotChargeInParallel || chargePoint.sharePowerToAllConnectors) {
+          chargePoint.amperage = connector.amperage;
+          chargePoint.power = connector.power;
+        } else {
+          chargePoint.amperage += connector.amperage;
+          chargePoint.power += connector.power;
+        }
+        chargePoint.numberOfConnectedPhase = connector.numberOfConnectedPhase;
+        chargePoint.currentType = connector.currentType;
+        chargePoint.voltage = connector.voltage;
+      }
+    }
+  }
+
+  public static getChargingStationVoltage(chargingStation: ChargingStation, chargePoint?: ChargePoint, connectorId = 0): Voltage {
     if (chargingStation) {
       // Check at charging station level
       if (chargingStation.voltage) {
@@ -445,7 +521,7 @@ export class Utils {
         }
       }
     }
-    return 0;
+    return Voltage.VOLTAGE_230;
   }
 
   public static getChargingStationCurrentType(chargingStation: ChargingStation, chargePoint: ChargePoint, connectorId = 0): CurrentType {
@@ -485,7 +561,7 @@ export class Utils {
     return null;
   }
 
-  // tslint:disable-next-line: cyclomatic-complexity
+  // eslint-disable-next-line complexity
   public static getChargingStationAmperage(chargingStation: ChargingStation, chargePoint?: ChargePoint, connectorId = 0): number {
     let totalAmps = 0;
     if (chargingStation) {
@@ -560,6 +636,11 @@ export class Utils {
         }
       }
     }
+    const amperageMax = Utils.getChargingStationAmperage(chargingStation, chargePoint, connectorId);
+    // Check and default
+    if (amperageLimit === 0 || amperageLimit > amperageMax) {
+      amperageLimit = amperageMax;
+    }
     return amperageLimit;
   }
 
@@ -575,35 +656,13 @@ export class Utils {
     return 'N/A';
   }
 
-  public static buildCarUsersFullName(carUsers: UserCar[]) {
-    let usersName: string;
-    if (Utils.isEmptyArray(carUsers)) {
-      return '-';
-    }
-    // Find the owner
-    const userCarOwner = carUsers.find((userCar) => userCar.owner);
-    if (userCarOwner) {
-      // Build user name
-      usersName = Utils.buildUserFullName(userCarOwner.user);
-    }
-    // Build with first user name
-    if (!usersName) {
-      usersName = Utils.buildUserFullName(carUsers[0].user);
-    }
-    // Add number of remaining users
-    if (carUsers.length > 1) {
-      usersName += ` (+${carUsers.length - 1})`;
-    }
-    return usersName;
-  }
-
   public static buildUsersFullName(users: User[]) {
     if (Utils.isEmptyArray(users)) {
       return '-';
     }
     // Build first user name
     let usersName = Utils.buildUserFullName(users[0]);
-    // Add number of remaing users
+    // Add number of remaining users
     if (users.length > 1) {
       usersName += ` (+${users.length - 1})`;
     }
@@ -730,27 +789,20 @@ export class Utils {
       // Server connection error
       case 0:
         messageService.showErrorMessageConnectionLost();
-        if (centralServerService.configService.getCentralSystemServer().logoutOnConnectionError) {
-          // Log Off (remove token)
-          centralServerService.logoutSucceeded();
-          // Navigate to Login
-          router.navigate(['/auth/login']);
-        }
         break;
-      // Unauthorized!
-      case StatusCodes.UNAUTHORIZED:
-        // Log Off (remove token)
-        centralServerService.logoutSucceeded();
-        // Not logged in so redirect to login page with the return url
-        router.navigate(['/auth/login']);
-        break;
-      // Conflict in User Session
-      case StatusCodes.FORBIDDEN:
+      case HTTPError.USER_ACCOUNT_CHANGED:
+      case HTTPError.TENANT_COMPONENT_CHANGED:
         messageService.showWarningMessageUserOrTenantUpdated();
         // Log Off (remove token)
         centralServerService.logoutSucceeded();
         // Navigate to Login
         router.navigate(['/auth/login']);
+        break;
+      // Unauthorized!
+      case StatusCodes.UNAUTHORIZED:
+      case StatusCodes.FORBIDDEN:
+        // Not Authorized
+        messageService.showErrorMessage('general.not_authorized');
         break;
       case StatusCodes.BAD_REQUEST:
         messageService.showErrorMessage('general.invalid_content');
@@ -828,7 +880,7 @@ export class Utils {
   }
 
   public static isNullOrUndefined(obj: any): boolean {
-    // tslint:disable-next-line: triple-equals
+    // eslint-disable-next-line eqeqeq
     return obj == null;
   }
 
@@ -860,4 +912,12 @@ export class Utils {
     document.execCommand('copy');
     document.body.removeChild(element);
   }
+
+  // when exporting values
+  public static escapeCsvValue(value: any): string {
+    // add double quote start and end
+    // replace double quotes inside value to double double quotes to display double quote correctly in csv editor
+    return typeof value === 'string' ? '"' + value.replace(/"/g, '""') + '"' : value;
+  }
+
 }

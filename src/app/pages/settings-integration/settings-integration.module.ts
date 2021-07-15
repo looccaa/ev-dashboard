@@ -16,15 +16,22 @@ import { SettingsAnalyticsComponent } from './analytics/settings-analytics.compo
 import { AssetConnectionComponent } from './asset/connection/asset-connection.component';
 import { AssetConnectionDialogComponent } from './asset/connection/asset-connection.dialog.component';
 import { GreencomAssetConnectionComponent } from './asset/connection/greencom/greencom-asset-connection.component';
+import { IothinkAssetConnectionComponent } from './asset/connection/iothink/iothink-asset-connection.component';
 import { SchneiderAssetConnectionComponent } from './asset/connection/schneider/schneider-asset-connection.component';
+import { WitAssetConnectionComponent } from './asset/connection/wit/wit-asset-connection.component';
 import { SettingsAssetConnectionEditableTableDataSource } from './asset/settings-asset-connections-list-table-data-source';
 import { SettingsAssetComponent } from './asset/settings-asset.component';
 import { SettingsBillingComponent } from './billing/settings-billing.component';
 import { SettingsStripeComponent } from './billing/stripe/settings-stripe.component';
-import { SettingsOcpiEnpointComponent } from './ocpi/endpoints/endpoint/settings-ocpi-endpoint.component';
-import { SettingsOcpiEnpointDialogComponent } from './ocpi/endpoints/endpoint/settings-ocpi-endpoint.dialog.component';
+import { CarConnectorConnectionComponent } from './car-connector/connection/car-connector-connection.component';
+import { CarConnectorConnectionDialogComponent } from './car-connector/connection/car-connector-connection.dialog.component';
+import { MercedesCarConnectorConnectionComponent } from './car-connector/connection/mercedes/mercedes-car-connector-connection.component';
+import { SettingsCarConnectorConnectionEditableTableDataSource } from './car-connector/settings-car-connector-connections-list-table-data-source';
+import { SettingsCarConnectorComponent } from './car-connector/settings-car-connector.component';
+import { SettingsOcpiEndpointComponent } from './ocpi/endpoints/endpoint/settings-ocpi-endpoint.component';
+import { SettingsOcpiEndpointDialogComponent } from './ocpi/endpoints/endpoint/settings-ocpi-endpoint.dialog.component';
 import { AppFormatOcpiEvsesFailurePipe, OcpiDetailFailureEvsesStatusFormatterComponent } from './ocpi/endpoints/formatters/ocpi-detail-failure-evses-status-formatter.component';
-import { AppFormatOcpiDetailJobStatusPipe, OcpiDetailJobStatusFomatterComponent } from './ocpi/endpoints/formatters/ocpi-detail-job-status-formatter.component';
+import { AppFormatOcpiDetailJobStatusPipe, OcpiDetailJobStatusFormatterComponent } from './ocpi/endpoints/formatters/ocpi-detail-job-status-formatter.component';
 import { OcpiDetailSuccessEvsesStatusFormatterComponent } from './ocpi/endpoints/formatters/ocpi-detail-success-evses-status-formatter.component';
 import { AppFormatOcpiEvsesTotalPipe, OcpiDetailTotalEvsesStatusFormatterComponent } from './ocpi/endpoints/formatters/ocpi-detail-total-evses-status-formatter.component';
 import { AppFormatOcpiJobResultPipe, OcpiJobResultFormatterComponent } from './ocpi/endpoints/formatters/ocpi-job-result-formatter.component';
@@ -32,10 +39,25 @@ import { AppFormatOcpiPatchJobResultPipe, OcpiPatchJobResultFormatterComponent }
 import { AppFormatOcpiPatchJobStatusPipe, OcpiPatchJobStatusFormatterComponent } from './ocpi/endpoints/formatters/ocpi-patch-job-status-formatter.component';
 import { AppFormatOcpiStatusPipe, OcpiEndpointStatusFormatterComponent } from './ocpi/endpoints/formatters/ocpi-status-formatter.component';
 import { SettingsOcpiEndpointsDetailsTableDataSource } from './ocpi/endpoints/ocpi-details/settings-ocpi-endpoints-details-table-data-source';
-import { SettingsOcpiEnpointsDetailsComponent } from './ocpi/endpoints/ocpi-details/settings-ocpi-endpoints-details.component';
+import { SettingsOcpiEndpointsDetailsComponent } from './ocpi/endpoints/ocpi-details/settings-ocpi-endpoints-details.component';
 import { SettingsOcpiEndpointsTableDataSource } from './ocpi/endpoints/settings-ocpi-endpoints-table-data-source';
-import { SettingsOcpiEnpointsComponent } from './ocpi/endpoints/settings-ocpi-endpoints.component';
+import { SettingsOcpiEndpointsComponent } from './ocpi/endpoints/settings-ocpi-endpoints.component';
 import { SettingsOcpiComponent } from './ocpi/settings-ocpi.component';
+import { SettingsOicpEndpointComponent } from './oicp/endpoints/endpoint/settings-oicp-endpoint.component';
+import { SettingsOicpEndpointDialogComponent } from './oicp/endpoints/endpoint/settings-oicp-endpoint.dialog.component';
+import { AppFormatOicpEvsesFailurePipe, OicpDetailFailureEvsesStatusFormatterComponent } from './oicp/endpoints/formatters/oicp-detail-failure-evses-status-formatter.component';
+import { AppFormatOicpDetailJobStatusPipe, OicpDetailJobStatusFormatterComponent } from './oicp/endpoints/formatters/oicp-detail-job-status-formatter.component';
+import { OicpDetailSuccessEvsesStatusFormatterComponent } from './oicp/endpoints/formatters/oicp-detail-success-evses-status-formatter.component';
+import { AppFormatOicpEvsesTotalPipe, OicpDetailTotalEvsesStatusFormatterComponent } from './oicp/endpoints/formatters/oicp-detail-total-evses-status-formatter.component';
+import { AppFormatOicpJobResultPipe, OicpJobResultFormatterComponent } from './oicp/endpoints/formatters/oicp-job-result-formatter.component';
+import { AppFormatOicpPatchJobResultPipe, OicpPatchJobResultFormatterComponent } from './oicp/endpoints/formatters/oicp-patch-job-result-formatter.component';
+import { AppFormatOicpPatchJobStatusPipe, OicpPatchJobStatusFormatterComponent } from './oicp/endpoints/formatters/oicp-patch-job-status-formatter.component';
+import { AppFormatOicpStatusPipe, OicpEndpointStatusFormatterComponent } from './oicp/endpoints/formatters/oicp-status-formatter.component';
+import { SettingsOicpEndpointsDetailsTableDataSource } from './oicp/endpoints/oicp-details/settings-oicp-endpoints-details-table-data-source';
+import { SettingsOicpEndpointsDetailsComponent } from './oicp/endpoints/oicp-details/settings-oicp-endpoints-details.component';
+import { SettingsOicpEndpointsTableDataSource } from './oicp/endpoints/settings-oicp-endpoints-table-data-source';
+import { SettingsOicpEndpointsComponent } from './oicp/endpoints/settings-oicp-endpoints.component';
+import { SettingsOicpComponent } from './oicp/settings-oicp.component';
 import { SettingsConvergentChargingComponent } from './pricing/convergent-charging/settings-convergent-charging.component';
 import { SettingsPricingComponent } from './pricing/settings-pricing.component';
 import { SettingsSimplePricingComponent } from './pricing/simple/settings-simple-pricing.component';
@@ -62,6 +84,7 @@ import { SettingsSmartChargingComponent } from './smart-charging/settings-smart-
   declarations: [
     SettingsIntegrationComponent,
     SettingsOcpiComponent,
+    SettingsOicpComponent,
     SettingsRefundComponent,
     SettingsConcurComponent,
     SettingsPricingComponent,
@@ -74,19 +97,31 @@ import { SettingsSmartChargingComponent } from './smart-charging/settings-smart-
     SettingsSmartChargingComponent,
     SettingsSapSmartChargingComponent,
     OcpiJobResultFormatterComponent,
+    OicpJobResultFormatterComponent,
     AnalyticsLinkDialogComponent,
     SettingsOcpiComponent,
-    SettingsOcpiEnpointsComponent,
-    SettingsOcpiEnpointDialogComponent,
-    SettingsOcpiEnpointComponent,
+    SettingsOicpComponent,
+    SettingsOcpiEndpointsComponent,
+    SettingsOcpiEndpointDialogComponent,
+    SettingsOcpiEndpointComponent,
+    SettingsOicpEndpointsComponent,
+    SettingsOicpEndpointDialogComponent,
+    SettingsOicpEndpointComponent,
     SettingsAssetComponent,
     AssetConnectionComponent,
     AssetConnectionDialogComponent,
     SchneiderAssetConnectionComponent,
     GreencomAssetConnectionComponent,
+    IothinkAssetConnectionComponent,
+    WitAssetConnectionComponent,
+    SettingsCarConnectorComponent,
+    CarConnectorConnectionComponent,
+    CarConnectorConnectionDialogComponent,
+    MercedesCarConnectorConnectionComponent,
     OcpiEndpointStatusFormatterComponent,
+    OicpEndpointStatusFormatterComponent,
     AppFormatOcpiStatusPipe,
-    OcpiDetailJobStatusFomatterComponent,
+    OcpiDetailJobStatusFormatterComponent,
     AppFormatOcpiDetailJobStatusPipe,
     AppFormatOcpiJobResultPipe,
     OcpiPatchJobResultFormatterComponent,
@@ -98,12 +133,29 @@ import { SettingsSmartChargingComponent } from './smart-charging/settings-smart-
     AppFormatOcpiEvsesFailurePipe,
     OcpiPatchJobStatusFormatterComponent,
     AppFormatOcpiPatchJobStatusPipe,
-    SettingsOcpiEnpointsDetailsComponent,
+    SettingsOcpiEndpointsDetailsComponent,
+    OicpEndpointStatusFormatterComponent,
+    AppFormatOicpStatusPipe,
+    OicpDetailJobStatusFormatterComponent,
+    AppFormatOicpDetailJobStatusPipe,
+    AppFormatOicpJobResultPipe,
+    OicpPatchJobResultFormatterComponent,
+    AppFormatOicpPatchJobResultPipe,
+    OicpDetailTotalEvsesStatusFormatterComponent,
+    AppFormatOicpEvsesTotalPipe,
+    OicpDetailSuccessEvsesStatusFormatterComponent,
+    OicpDetailFailureEvsesStatusFormatterComponent,
+    AppFormatOicpEvsesFailurePipe,
+    OicpPatchJobStatusFormatterComponent,
+    AppFormatOicpPatchJobStatusPipe,
+    SettingsOicpEndpointsDetailsComponent,
   ],
   entryComponents: [
     SettingsIntegrationComponent,
     SettingsOcpiComponent,
-    SettingsOcpiEnpointsComponent,
+    SettingsOcpiEndpointsComponent,
+    SettingsOicpComponent,
+    SettingsOicpEndpointsComponent,
     SettingsRefundComponent,
     SettingsConcurComponent,
     SettingsPricingComponent,
@@ -120,22 +172,41 @@ import { SettingsSmartChargingComponent } from './smart-charging/settings-smart-
     AssetConnectionDialogComponent,
     SchneiderAssetConnectionComponent,
     GreencomAssetConnectionComponent,
+    IothinkAssetConnectionComponent,
+    WitAssetConnectionComponent,
+    SettingsCarConnectorComponent,
+    CarConnectorConnectionComponent,
+    CarConnectorConnectionDialogComponent,
+    MercedesCarConnectorConnectionComponent,
     AnalyticsLinkDialogComponent,
-    SettingsOcpiEnpointDialogComponent,
-    SettingsOcpiEnpointComponent,
+    SettingsOcpiEndpointDialogComponent,
+    SettingsOcpiEndpointComponent,
     OcpiEndpointStatusFormatterComponent,
-    OcpiDetailJobStatusFomatterComponent,
+    OcpiDetailJobStatusFormatterComponent,
     OcpiPatchJobResultFormatterComponent,
     OcpiDetailTotalEvsesStatusFormatterComponent,
     OcpiDetailSuccessEvsesStatusFormatterComponent,
     OcpiDetailFailureEvsesStatusFormatterComponent,
     OcpiPatchJobStatusFormatterComponent,
-    SettingsOcpiEnpointsDetailsComponent,
+    SettingsOcpiEndpointsDetailsComponent,
+    SettingsOicpEndpointDialogComponent,
+    SettingsOicpEndpointComponent,
+    OicpEndpointStatusFormatterComponent,
+    OicpDetailJobStatusFormatterComponent,
+    OicpPatchJobResultFormatterComponent,
+    OicpDetailTotalEvsesStatusFormatterComponent,
+    OicpDetailSuccessEvsesStatusFormatterComponent,
+    OicpDetailFailureEvsesStatusFormatterComponent,
+    OicpPatchJobStatusFormatterComponent,
+    SettingsOicpEndpointsDetailsComponent
   ],
   providers: [
     SettingsOcpiEndpointsDetailsTableDataSource,
     SettingsOcpiEndpointsTableDataSource,
+    SettingsOicpEndpointsDetailsTableDataSource,
+    SettingsOicpEndpointsTableDataSource,
     SettingsAssetConnectionEditableTableDataSource,
+    SettingsCarConnectorConnectionEditableTableDataSource,
     AnalyticsLinksTableDataSource,
   ],
 })

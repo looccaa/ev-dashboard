@@ -1,7 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { TranslateService } from '@ngx-translate/core';
+import { Router } from '@angular/router';
 import { ReCaptchaV3Service } from 'ngx-captcha';
 
 import { CentralServerService } from '../../services/central-server.service';
@@ -20,20 +19,19 @@ export class AuthenticationResetPasswordComponent implements OnInit, OnDestroy {
   public email: AbstractControl;
   public formGroup: FormGroup;
 
-  private siteKey: string;
-  private subDomain: string;
   public tenantLogo = Constants.TENANT_DEFAULT_LOGO;
 
-  constructor(
+  private siteKey: string;
+  private subDomain: string;
+
+  public constructor(
     private centralServerService: CentralServerService,
     private router: Router,
-    private route: ActivatedRoute,
     private spinnerService: SpinnerService,
     private messageService: MessageService,
     private reCaptchaV3Service: ReCaptchaV3Service,
     private windowService: WindowService,
-    private configService: ConfigService,
-    private translateService: TranslateService) {
+    private configService: ConfigService) {
     // Get the Site Key
     this.siteKey = this.configService.getUser().captchaSiteKey;
     // Init Form

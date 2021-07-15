@@ -2,12 +2,12 @@ import { Injectable } from '@angular/core';
 import { TranslateService } from '@ngx-translate/core';
 
 import { SpinnerService } from '../../services/spinner.service';
-import { Data, TableActionDef, TableDef } from '../../types/Table';
+import { TableActionDef, TableData, TableDef } from '../../types/Table';
 import { TableDataSource } from '../table/table-data-source';
 
 @Injectable()
-export abstract class DialogTableDataSource<T extends Data> extends TableDataSource<T> {
-  constructor(
+export abstract class DialogTableDataSource<T extends TableData> extends TableDataSource<T> {
+  public constructor(
     public spinnerService: SpinnerService,
     public translateService: TranslateService) {
     super(spinnerService, translateService);

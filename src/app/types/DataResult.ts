@@ -1,5 +1,10 @@
-import { Data } from './Table';
+import { Car, CarCatalog } from './Car';
+import { Company } from './Company';
+import { Site } from './Site';
+import { SiteArea } from './SiteArea';
+import { Tag } from './Tag';
 import { Transaction } from './Transaction';
+import { UserStatus } from './User';
 
 export interface ActionResponse {
   status: string;
@@ -32,7 +37,22 @@ export interface OCPIJobStatusesResponse extends ActionResponse {
   chargeBoxIDsInSuccess: string[];
 }
 
+export interface OICPJobStatusesResponse extends ActionResponse {
+  success: number;
+  failure: number;
+  total: number;
+  logs: string[];
+  chargeBoxIDsInFailure: string[];
+  chargeBoxIDsInSuccess: string[];
+}
+
 export interface OCPIPingResponse extends ActionResponse {
+  statusCode: number;
+  statusText: string;
+  message: string;
+}
+
+export interface OICPPingResponse extends ActionResponse {
   statusCode: number;
   statusText: string;
   message: string;
@@ -51,9 +71,35 @@ export interface CheckBillingConnectionResponse extends ActionResponse {
   connectionIsValid: boolean;
 }
 
-export interface DataResult<T extends Data> {
+export interface DataResult<T> {
   count: number;
   result: T[];
+  projectedFields?: string[];
+}
+
+export interface CompanyDataResult extends DataResult<Company> {
+  canCreate: boolean;
+}
+
+export interface SiteDataResult extends DataResult<Site> {
+  canCreate: boolean;
+}
+
+export interface CarDataResult extends DataResult<Car> {
+  canCreate: boolean;
+}
+export interface CarCatalogDataResult extends DataResult<CarCatalog> {
+  canSync: boolean;
+}
+
+export interface SiteAreaDataResult extends DataResult<SiteArea> {
+  canCreate: boolean;
+}
+
+export interface TagDataResult extends DataResult<Tag> {
+  canCreate: boolean;
+  canImport: boolean;
+  canExport: boolean;
 }
 
 export interface CheckAssetConnectionResponse extends ActionResponse {
@@ -97,4 +143,14 @@ export interface Ordering {
 export interface Paging {
   limit: number;
   skip: number;
+}
+
+export interface VerifyEmailResponse extends ActionResponse {
+  userStatus?: UserStatus;
+}
+
+export interface BillingOperationResult {
+  succeeded: boolean;
+  error?: Error;
+  internalData?: unknown; // an object returned by the concrete implementation - e.g.: STRIPE
 }

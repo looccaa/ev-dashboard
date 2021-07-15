@@ -2,9 +2,10 @@ import { DOCUMENT } from '@angular/common';
 import { Component, Inject, Input, OnInit } from '@angular/core';
 import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
-import { ActivatedRoute, Params, Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
 import { mergeMap } from 'rxjs/operators';
+import { DialogMode } from 'types/Authorization';
 
 import { AuthorizationService } from '../../../services/authorization.service';
 import { CentralServerService } from '../../../services/central-server.service';
@@ -29,17 +30,20 @@ import { Constants } from '../../../utils/Constants';
 import { ParentErrorStateMatcher } from '../../../utils/ParentStateMatcher';
 import { Users } from '../../../utils/Users';
 import { Utils } from '../../../utils/Utils';
+import { PaymentMethodsTableDataSource } from './payment-methods/payment-methods-table-data-source';
 import { UserDialogComponent } from './user.dialog.component';
 
 @Component({
   selector: 'app-user',
   templateUrl: 'user.component.html',
+  providers: [PaymentMethodsTableDataSource],
 })
 export class UserComponent extends AbstractTabComponent implements OnInit {
-  public parentErrorStateMatcher = new ParentErrorStateMatcher();
   @Input() public currentUserID!: string;
   @Input() public inDialog!: boolean;
   @Input() public dialogRef!: MatDialogRef<UserDialogComponent>;
+  @Input() public dialogMode!: DialogMode;
+  public parentErrorStateMatcher = new ParentErrorStateMatcher();
   public userStatuses: KeyValue[];
   public userRoles: KeyValue[];
   public userLocales: KeyValue[];
@@ -49,6 +53,7 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
   public isSiteAdmin = false;
   public originalEmail!: string;
   public image = Constants.USER_NO_PICTURE;
+  public userImageSet = false;
   public hideRepeatPassword = true;
   public hidePassword = true;
   public maxSize: number;
@@ -86,20 +91,26 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
   public sendChargingStationRegistered!: AbstractControl;
   public sendOfflineChargingStations!: AbstractControl;
   public sendOcpiPatchStatusError!: AbstractControl;
+  public sendOicpPatchStatusError!: AbstractControl;
   public sendPreparingSessionNotStarted!: AbstractControl;
-  public sendSmtpAuthError!: AbstractControl;
+  public sendSmtpError!: AbstractControl;
   public sendBillingSynchronizationFailed!: AbstractControl;
+  public sendBillingPeriodicOperationFailed!: AbstractControl;
   public sendComputeAndApplyChargingProfilesFailed!: AbstractControl;
   public sendSessionNotStarted!: AbstractControl;
   public sendUserAccountInactivity!: AbstractControl;
   public sendEndUserErrorNotification!: AbstractControl;
   public sendBillingNewInvoice!: AbstractControl;
+  public sendAdminAccountVerificationNotification!: AbstractControl;
   public user!: User;
   public isRefundConnectionValid!: boolean;
   public canSeeInvoice: boolean;
+  public isBillingComponentActive: boolean;
+  public canListPaymentMethods: boolean;
   private currentLocale!: string;
 
-  constructor(
+  public constructor(
+    public paymentMethodsTableDataSource: PaymentMethodsTableDataSource,
     private authorizationService: AuthorizationService,
     private centralServerService: CentralServerService,
     private componentService: ComponentService,
@@ -113,13 +124,8 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
     @Inject(DOCUMENT) private document: any,
     activatedRoute: ActivatedRoute,
     windowService: WindowService) {
-    super(activatedRoute, windowService, ['common', 'notifications', 'address', 'password', 'connections', 'miscs'], false);
+    super(activatedRoute, windowService, ['common', 'notifications', 'address', 'password', 'connections', 'miscs', 'billing'], false);
     this.maxSize = this.configService.getUser().maxPictureKb;
-    // Check auth
-    if (this.activatedRoute.snapshot.params['id'] &&
-      !authorizationService.canUpdateUser()) {
-      this.router.navigate(['/']);
-    }
     // Get statuses
     this.userStatuses = USER_STATUSES;
     // Get Roles
@@ -145,6 +151,8 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
         }
       });
     }
+    this.isBillingComponentActive = this.componentService.isActive(TenantComponents.BILLING);
+    this.canListPaymentMethods = this.authorizationService.canListPaymentMethods();
   }
 
   public updateRoute(event: number) {
@@ -154,6 +162,9 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
   }
 
   public ngOnInit() {
+    if (this.activatedRoute.snapshot.url[0]?.path === 'profile') {
+      this.currentUserID = this.centralServerService.getLoggedUser().id;
+    }
     // Init the form
     this.formGroup = new FormGroup({
       id: new FormControl(''),
@@ -161,10 +172,12 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
       name: new FormControl('',
         Validators.compose([
           Validators.required,
+          Validators.maxLength(255),
         ])),
       firstName: new FormControl('',
         Validators.compose([
           Validators.required,
+          Validators.maxLength(255),
         ])),
       notificationsActive: new FormControl(true),
       notifications: new FormGroup({
@@ -182,11 +195,14 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
         sendOfflineChargingStations: new FormControl(false),
         sendPreparingSessionNotStarted: new FormControl(false),
         sendOcpiPatchStatusError: new FormControl(false),
-        sendSmtpAuthError: new FormControl(false),
+        sendOicpPatchStatusError: new FormControl(false),
+        sendSmtpError: new FormControl(false),
         sendBillingSynchronizationFailed: new FormControl(false),
+        sendBillingPeriodicOperationFailed: new FormControl(false),
         sendComputeAndApplyChargingProfilesFailed: new FormControl(false),
         sendEndUserErrorNotification: new FormControl(false),
-        sendBillingNewInvoice: new FormControl(false),
+        sendBillingNewInvoice: new FormControl(true),
+        sendAdminAccountVerificationNotification: new FormControl(true)
       }),
       email: new FormControl('',
         Validators.compose([
@@ -228,14 +244,12 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
           Validators.compose([
             Users.passwordWithNoSpace,
             Users.validatePassword,
-          ])),
+          ].concat(!Utils.isEmptyString(this.currentUserID) ? [] : [Validators.required]))),
         repeatPassword: new FormControl('',
           Validators.compose([
             Users.validatePassword,
-          ])),
-      }, (passwordFormGroup: FormGroup) => {
-        return Utils.validateEqual(passwordFormGroup, 'password', 'repeatPassword');
-      }),
+          ].concat(!Utils.isEmptyString(this.currentUserID) ? [] : [Validators.required]))),
+      }, (passwordFormGroup: FormGroup) => Utils.validateEqual(passwordFormGroup, 'password', 'repeatPassword')),
     });
     // Form
     this.id = this.formGroup.controls['id'];
@@ -267,21 +281,19 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
     this.sendChargingStationRegistered = this.notifications.controls['sendChargingStationRegistered'];
     this.sendOfflineChargingStations = this.notifications.controls['sendOfflineChargingStations'];
     this.sendOcpiPatchStatusError = this.notifications.controls['sendOcpiPatchStatusError'];
+    this.sendOicpPatchStatusError = this.notifications.controls['sendOicpPatchStatusError'];
     this.sendPreparingSessionNotStarted = this.notifications.controls['sendPreparingSessionNotStarted'];
-    this.sendSmtpAuthError = this.notifications.controls['sendSmtpAuthError'];
+    this.sendSmtpError = this.notifications.controls['sendSmtpError'];
     this.sendBillingSynchronizationFailed = this.notifications.controls['sendBillingSynchronizationFailed'];
+    this.sendBillingPeriodicOperationFailed = this.notifications.controls['sendBillingPeriodicOperationFailed'];
     this.sendSessionNotStarted = this.notifications.controls['sendSessionNotStarted'];
     this.sendUserAccountInactivity = this.notifications.controls['sendUserAccountInactivity'];
     this.sendComputeAndApplyChargingProfilesFailed = this.notifications.controls['sendComputeAndApplyChargingProfilesFailed'];
     this.sendEndUserErrorNotification = this.notifications.controls['sendEndUserErrorNotification'];
     this.sendBillingNewInvoice = this.notifications.controls['sendBillingNewInvoice'];
+    this.sendAdminAccountVerificationNotification = this.notifications.controls['sendAdminAccountVerificationNotification'];
     if (this.currentUserID) {
       this.loadUser();
-    } else if (this.activatedRoute && this.activatedRoute.params) {
-      this.activatedRoute.params.subscribe((params: Params) => {
-        this.currentUserID = params['id'];
-        this.loadUser();
-      });
     }
     this.loadRefundSettings();
     if (!this.inDialog) {
@@ -293,10 +305,6 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
     // Reset notifications ?
   }
 
-  public setCurrentUserId(currentUserID: string) {
-    this.currentUserID = currentUserID;
-  }
-
   public refresh() {
     // Load User
     this.loadUser();
@@ -306,8 +314,9 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
     if (!this.currentUserID) {
       return;
     }
+    this.paymentMethodsTableDataSource.setCurrentUserId(this.currentUserID);
     this.spinnerService.show();
-    // tslint:disable-next-line: cyclomatic-complexity
+    // eslint-disable-next-line complexity
     this.centralServerService.getUser(this.currentUserID).pipe(mergeMap((user) => {
       this.formGroup.markAsPristine();
       this.user = user;
@@ -408,20 +417,30 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
       } else {
         this.notifications.controls.sendOcpiPatchStatusError.setValue(false);
       }
+      if (user.notifications && Utils.objectHasProperty(user.notifications, 'sendOicpPatchStatusError')) {
+        this.notifications.controls.sendOicpPatchStatusError.setValue(user.notifications.sendOicpPatchStatusError);
+      } else {
+        this.notifications.controls.sendOicpPatchStatusError.setValue(false);
+      }
       if (user.notifications && Utils.objectHasProperty(user.notifications, 'sendPreparingSessionNotStarted')) {
         this.notifications.controls.sendPreparingSessionNotStarted.setValue(user.notifications.sendPreparingSessionNotStarted);
       } else {
         this.notifications.controls.sendPreparingSessionNotStarted.setValue(false);
       }
-      if (user.notifications && Utils.objectHasProperty(user.notifications, 'sendSmtpAuthError')) {
-        this.notifications.controls.sendSmtpAuthError.setValue(user.notifications.sendSmtpAuthError);
+      if (user.notifications && Utils.objectHasProperty(user.notifications, 'sendSmtpError')) {
+        this.notifications.controls.sendSmtpError.setValue(user.notifications.sendSmtpError);
       } else {
-        this.notifications.controls.sendSmtpAuthError.setValue(false);
+        this.notifications.controls.sendSmtpError.setValue(false);
       }
       if (user.notifications && Utils.objectHasProperty(user.notifications, 'sendBillingSynchronizationFailed')) {
         this.notifications.controls.sendBillingSynchronizationFailed.setValue(user.notifications.sendBillingSynchronizationFailed);
       } else {
         this.notifications.controls.sendBillingSynchronizationFailed.setValue(false);
+      }
+      if (user.notifications && Utils.objectHasProperty(user.notifications, 'sendBillingPeriodicOperationFailed')) {
+        this.notifications.controls.sendBillingPeriodicOperationFailed.setValue(user.notifications.sendBillingPeriodicOperationFailed);
+      } else {
+        this.notifications.controls.sendBillingPeriodicOperationFailed.setValue(false);
       }
       if (user.notifications && Utils.objectHasProperty(user.notifications, 'sendUserAccountInactivity')) {
         this.notifications.controls.sendUserAccountInactivity.setValue(user.notifications.sendUserAccountInactivity);
@@ -449,6 +468,11 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
       } else {
         this.notifications.controls.sendBillingNewInvoice.setValue(false);
       }
+      if (user.notifications && Utils.objectHasProperty(user.notifications, 'sendAdminAccountVerificationNotification')) {
+        this.notifications.controls.sendAdminAccountVerificationNotification.setValue(user.notifications.sendAdminAccountVerificationNotification);
+      } else {
+        this.notifications.controls.sendAdminAccountVerificationNotification.setValue(false);
+      }
       if (user.address) {
         this.address = user.address;
       }
@@ -460,6 +484,7 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
     })).subscribe((userImage) => {
       if (userImage && userImage.image) {
         this.image = userImage.image.toString();
+        this.userImageSet = true;
       }
       this.spinnerService.hide();
       this.formGroup.updateValueAndValidity();
@@ -495,11 +520,14 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
         this.notifications.controls.sendChargingStationRegistered.setValue(true);
         this.notifications.controls.sendOfflineChargingStations.setValue(true);
         this.notifications.controls.sendOcpiPatchStatusError.setValue(true);
+        this.notifications.controls.sendOicpPatchStatusError.setValue(true);
         this.notifications.controls.sendPreparingSessionNotStarted.setValue(true);
-        this.notifications.controls.sendSmtpAuthError.setValue(true);
+        this.notifications.controls.sendSmtpError.setValue(true);
         this.notifications.controls.sendBillingSynchronizationFailed.setValue(true);
+        this.notifications.controls.sendBillingPeriodicOperationFailed.setValue(true);
         this.notifications.controls.sendComputeAndApplyChargingProfilesFailed.setValue(true);
         this.notifications.controls.sendEndUserErrorNotification.setValue(true);
+        this.notifications.controls.sendAdminAccountVerificationNotification.setValue(true);
         break;
       case UserRole.BASIC:
         this.formGroup.controls.notificationsActive.setValue(true);
@@ -516,9 +544,11 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
         this.notifications.controls.sendChargingStationRegistered.setValue(false);
         this.notifications.controls.sendOfflineChargingStations.setValue(false);
         this.notifications.controls.sendOcpiPatchStatusError.setValue(false);
+        this.notifications.controls.sendOicpPatchStatusError.setValue(false);
         this.notifications.controls.sendPreparingSessionNotStarted.setValue(false);
-        this.notifications.controls.sendSmtpAuthError.setValue(false);
+        this.notifications.controls.sendSmtpError.setValue(false);
         this.notifications.controls.sendBillingSynchronizationFailed.setValue(false);
+        this.notifications.controls.sendBillingPeriodicOperationFailed.setValue(false);
         this.notifications.controls.sendComputeAndApplyChargingProfilesFailed.setValue(false);
         this.notifications.controls.sendEndUserErrorNotification.setValue(false);
         break;
@@ -537,22 +567,14 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
         this.notifications.controls.sendChargingStationRegistered.setValue(false);
         this.notifications.controls.sendOfflineChargingStations.setValue(false);
         this.notifications.controls.sendOcpiPatchStatusError.setValue(false);
+        this.notifications.controls.sendOicpPatchStatusError.setValue(false);
         this.notifications.controls.sendPreparingSessionNotStarted.setValue(false);
-        this.notifications.controls.sendSmtpAuthError.setValue(false);
+        this.notifications.controls.sendSmtpError.setValue(false);
         this.notifications.controls.sendBillingSynchronizationFailed.setValue(false);
+        this.notifications.controls.sendBillingPeriodicOperationFailed.setValue(false);
         this.notifications.controls.sendComputeAndApplyChargingProfilesFailed.setValue(false);
         this.notifications.controls.sendEndUserErrorNotification.setValue(false);
         break;
-    }
-  }
-
-  public updateUserImage(user: User) {
-    if (this.image && !this.image.endsWith(Constants.USER_NO_PICTURE)) {
-      // Set to user
-      user.image = this.image;
-    } else {
-      // No image
-      user.image = null;
     }
   }
 
@@ -573,6 +595,7 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
         const reader = new FileReader();
         reader.onload = () => {
           this.image = reader.result as string;
+          this.userImageSet = true;
           this.formGroup.markAsDirty();
         };
         reader.readAsDataURL(file);
@@ -582,6 +605,7 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
 
   public clearImage() {
     this.image = Constants.USER_NO_PICTURE;
+    this.userImageSet = false;
     this.formGroup.markAsDirty();
   }
 
@@ -604,12 +628,12 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
   }
 
   public linkRefundAccount() {
-    if (!this.refundSetting || !this.refundSetting.content || !this.refundSetting.content.concur) {
+    if (!this.refundSetting || !this.refundSetting.concur) {
       this.messageService.showErrorMessage(
         this.translateService.instant('transactions.notification.refund.tenant_concur_connection_invalid'));
     } else {
       // Concur
-      const concurSetting = this.refundSetting.content.concur;
+      const concurSetting = this.refundSetting.concur;
       const returnedUrl = `${this.windowService.getOrigin()}/users/connections`;
       const state = {
         connector: 'concur',
@@ -622,25 +646,35 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
   }
 
   public getRefundUrl(): string | null {
-    if (this.refundSetting && this.refundSetting.content && this.refundSetting.content.concur) {
-      return this.refundSetting.content.concur.apiUrl;
+    if (this.refundSetting && this.refundSetting.concur) {
+      return this.refundSetting.concur.apiUrl;
     }
     return null;
   }
 
+  public closeDialog(saved: boolean = false) {
+    if (this.inDialog) {
+      this.windowService.clearSearch();
+      this.dialogRef.close(saved);
+    }
+  }
+
+  public close() {
+    Utils.checkAndSaveAndCloseDialog(this.formGroup, this.dialogService,
+      this.translateService, this.saveUser.bind(this), this.closeDialog.bind(this));
+  }
+
   private loadRefundSettings() {
     if (this.componentService.isActive(TenantComponents.REFUND)) {
-      this.centralServerService.getSettings(TenantComponents.REFUND).subscribe((settingResult) => {
-        if (settingResult && settingResult.result && settingResult.result.length > 0) {
-          this.refundSetting = settingResult.result[0] as RefundSettings;
-        }
+      this.componentService.getRefundSettings().subscribe((refundSettings) => {
+        this.refundSetting = refundSettings;
       });
       if (this.currentUserID) {
         this.centralServerService.getIntegrationConnections(this.currentUserID).subscribe((connectionResult) => {
           this.integrationConnections = null;
           this.refundConnection = null;
           this.isRefundConnectionValid = false;
-          if (connectionResult && connectionResult.result && connectionResult.result.length > 0) {
+          if (connectionResult && !Utils.isEmptyArray(connectionResult.result)) {
             for (const connection of connectionResult.result) {
               if (connection.connectorId === 'concur') {
                 this.refundConnection = connection;
@@ -658,15 +692,15 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
   }
 
   private createUser(user: User) {
-    // Set the image
     this.updateUserImage(user);
+    this.updateUserPassword(user);
     this.spinnerService.show();
     this.centralServerService.createUser(user).subscribe((response: ActionResponse) => {
       this.spinnerService.hide();
       if (response.status === RestResponse.SUCCESS) {
         this.messageService.showSuccessMessage('users.create_success', { userFullName: user.firstName + ' ' + user.name });
-        user.id = response.id!;
-        this.currentUserID = response.id!;
+        user.id = response.id ?? '';
+        this.currentUserID = response.id ?? '';
         this.closeDialog(true);
       } else {
         Utils.handleError(JSON.stringify(response), this.messageService, 'users.create_error');
@@ -690,8 +724,8 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
   }
 
   private updateUser(user: User) {
-    // Set the image
     this.updateUserImage(user);
+    this.updateUserPassword(user);
     this.spinnerService.show();
     this.centralServerService.updateUser(user).subscribe((response) => {
       this.spinnerService.hide();
@@ -719,14 +753,20 @@ export class UserComponent extends AbstractTabComponent implements OnInit {
     });
   }
 
-  public closeDialog(saved: boolean = false) {
-    if (this.inDialog) {
-      this.dialogRef.close(saved);
+  private updateUserImage(user: User) {
+    if (this.image && !this.image.endsWith(Constants.USER_NO_PICTURE)) {
+      // Set to user
+      user.image = this.image;
+    } else {
+      // No image
+      user.image = null;
     }
   }
 
-  public close() {
-    Utils.checkAndSaveAndCloseDialog(this.formGroup, this.dialogService,
-      this.translateService, this.saveUser.bind(this), this.closeDialog.bind(this));
+  private updateUserPassword(user: User) {
+    if (user['passwords'] && user['passwords']['password']) {
+      user['password'] = user['passwords']['password'];
+      delete user['passwords'];
+    }
   }
 }

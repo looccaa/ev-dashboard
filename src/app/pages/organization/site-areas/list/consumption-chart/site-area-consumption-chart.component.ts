@@ -32,7 +32,7 @@ export class SiteAreaConsumptionChartComponent implements OnInit, AfterViewInit 
   public dateControl!: AbstractControl;
   public startDate = moment().startOf('d').toDate();
   public endDate = moment().endOf('d').toDate();
-
+  private canCrudSiteArea = false;
   private graphCreated = false;
   private lineTension = 0;
   private data: ChartData = {
@@ -45,12 +45,9 @@ export class SiteAreaConsumptionChartComponent implements OnInit, AfterViewInit 
   private limitColor!: string;
   private defaultColor!: string;
   private language!: string;
-  private activeLegend = [
-    { key: this.translateService.instant('transactions.graph.amps') + this.translateService.instant('organization.graph.power'), hidden: false },
-    { key: this.translateService.instant('transactions.graph.limit_amps') + this.translateService.instant('organization.graph.limit_watts'), hidden: this.authorizationService.isAdmin() ? false : true },
-  ];
+  private activeLegend = [{ key: this.translateService.instant('transactions.graph.amps') + this.translateService.instant('organization.graph.power'), hidden: false }];
 
-  constructor(
+  public constructor(
     private spinnerService: SpinnerService,
     private centralServerService: CentralServerService,
     private translateService: TranslateService,
@@ -62,6 +59,8 @@ export class SiteAreaConsumptionChartComponent implements OnInit, AfterViewInit 
     this.localeService.getCurrentLocaleSubject().subscribe((locale) => {
       this.language = locale.language;
     });
+    this.canCrudSiteArea = this.authorizationService.canCreateSiteArea() && this.authorizationService.canReadSiteArea() &&
+      this.authorizationService.canUpdateSiteArea() && this.authorizationService.canDeleteSiteArea();
   }
 
   public ngOnInit() {
@@ -71,6 +70,12 @@ export class SiteAreaConsumptionChartComponent implements OnInit, AfterViewInit 
         Validators.required,
       ]));
     this.dateControl.setValue(this.startDate);
+    this.activeLegend.push(
+      {
+        key: this.translateService.instant('transactions.graph.limit_amps') + this.translateService.instant('organization.graph.limit_watts'),
+        hidden: this.canCrudSiteArea ? false : true
+      },
+    );
   }
 
   public ngAfterViewInit() {
@@ -185,7 +190,7 @@ export class SiteAreaConsumptionChartComponent implements OnInit, AfterViewInit 
   }
 
   private canDisplayGraph() {
-    return this.siteArea && this.siteArea.values && this.siteArea.values.length > 1;
+    return this.siteArea?.values?.length > 1;
   }
 
   private refreshDataSets() {
@@ -210,14 +215,14 @@ export class SiteAreaConsumptionChartComponent implements OnInit, AfterViewInit 
           if (consumption.limitWatts) {
             limitWattsDataSet.push(consumption.limitWatts);
           } else {
-            limitWattsDataSet.push(limitWattsDataSet.length > 0 ? limitWattsDataSet[limitWattsDataSet.length - 1] : 0);
+            limitWattsDataSet.push(!Utils.isEmptyArray(limitWattsDataSet) ? limitWattsDataSet[limitWattsDataSet.length - 1] : 0);
           }
         }
         if (limitAmpsDataSet) {
           if (consumption.limitAmps) {
             limitAmpsDataSet.push(consumption.limitAmps);
           } else {
-            limitAmpsDataSet.push(limitAmpsDataSet.length > 0 ? limitAmpsDataSet[limitAmpsDataSet.length - 1] : 0);
+            limitAmpsDataSet.push(!Utils.isEmptyArray(limitAmpsDataSet) ? limitAmpsDataSet[limitAmpsDataSet.length - 1] : 0);
           }
         }
       }
@@ -254,13 +259,11 @@ export class SiteAreaConsumptionChartComponent implements OnInit, AfterViewInit 
         multiKeyBackground: Utils.toRgba(this.instantPowerColor, 0.7),
         intersect: false,
         callbacks: {
-          labelColor: (tooltipItem: ChartTooltipItem, chart: Chart) => {
-            return {
-              borderColor: 'rgba(0,0,0,0)',
-              backgroundColor: this.data.datasets && tooltipItem.datasetIndex ?
-                this.data.datasets[tooltipItem.datasetIndex].borderColor as ChartColor : '',
-            };
-          },
+          labelColor: (tooltipItem: ChartTooltipItem, chart: Chart) => ({
+            borderColor: 'rgba(0,0,0,0)',
+            backgroundColor: this.data.datasets && tooltipItem.datasetIndex ?
+              this.data.datasets[tooltipItem.datasetIndex].borderColor as ChartColor : '',
+          }),
           label: (tooltipItem: ChartTooltipItem, data: ChartData) => {
             if (this.data.datasets && data.datasets && !Utils.isUndefined(tooltipItem.datasetIndex)) {
               const dataSet = data.datasets[tooltipItem.datasetIndex];
@@ -283,7 +286,7 @@ export class SiteAreaConsumptionChartComponent implements OnInit, AfterViewInit 
             return '';
           },
           title: (item: ChartTooltipItem[], data: ChartData) => {
-            if (data.labels && data.labels.length > 0) {
+            if (!Utils.isEmptyArray(data.labels)) {
               const firstDate = new Date(data.labels[0] as number);
               if (!Utils.isUndefined(item[0].index)) {
                 const currentDate = new Date(data.labels[item[0].index] as number);

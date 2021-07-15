@@ -53,7 +53,7 @@ export class ChargingPlanChartComponent implements OnChanges {
   private defaultColor!: string;
   private lineTension = 0;
 
-  constructor(
+  public constructor(
     private translateService: TranslateService,
     private durationPipe: AppDurationPipe,
     private localeService: LocaleService,
@@ -68,14 +68,13 @@ export class ChargingPlanChartComponent implements OnChanges {
     this.prepareAndCreateGraphData();
   }
 
-  private getStyleColor(element: Element): string {
-    const style = getComputedStyle(element);
-    return style && style.color ? style.color : '';
-  }
-
   public unitChanged(key: ConsumptionUnit) {
     this.selectedUnit = key;
     this.prepareAndCreateGraphData();
+  }
+  private getStyleColor(element: Element): string {
+    const style = getComputedStyle(element);
+    return style && style.color ? style.color : '';
   }
 
   private prepareOrUpdateGraph() {
@@ -109,7 +108,7 @@ export class ChargingPlanChartComponent implements OnChanges {
     }
   }
 
-  // tslint:disable-next-line: cyclomatic-complexity
+  // eslint-disable-next-line complexity
   private createGraphData() {
     // Clear
     if (this.data && this.data.datasets && this.data.labels) {
@@ -134,7 +133,7 @@ export class ChargingPlanChartComponent implements OnChanges {
         } as number & ChartPoint);
       }
       // Create the last Schedule point with the last duration
-      if (chargingSlotDataSet.data && this.chargingSchedules.length > 0) {
+      if (chargingSlotDataSet.data && !Utils.isEmptyArray(this.chargingSchedules)) {
         const chargingSlot = this.chargingSchedules[this.chargingSchedules.length - 1];
         labels.push(chargingSlot.startDate.getTime() + chargingSlot.duration * 60 * 1000);
         chargingSlotDataSet.data.push({
@@ -201,13 +200,11 @@ export class ChargingPlanChartComponent implements OnChanges {
         multiKeyBackground: Utils.toRgba(this.instantPowerColor, 0.7),
         intersect: false,
         callbacks: {
-          labelColor: (tooltipItem: ChartTooltipItem, chart: Chart) => {
-            return {
-              borderColor: 'rgba(0,0,0,0)',
-              backgroundColor: this.data.datasets && tooltipItem.datasetIndex ?
-                this.data.datasets[tooltipItem.datasetIndex].borderColor as ChartColor : '',
-            };
-          },
+          labelColor: (tooltipItem: ChartTooltipItem, chart: Chart) => ({
+            borderColor: 'rgba(0,0,0,0)',
+            backgroundColor: this.data.datasets && tooltipItem.datasetIndex ?
+              this.data.datasets[tooltipItem.datasetIndex].borderColor as ChartColor : '',
+          }),
           label: (tooltipItem: ChartTooltipItem, data: ChartData) => {
             if (data.datasets && !Utils.isUndefined(tooltipItem.datasetIndex)) {
               const dataSet = data.datasets[tooltipItem.datasetIndex];
@@ -272,8 +269,8 @@ export class ChargingPlanChartComponent implements OnChanges {
             ticks: {
               beginAtZero: true,
               callback: (value: number) => (this.selectedUnit === ConsumptionUnit.AMPERE) ?
-                parseInt(this.decimalPipe.transform(value, '1.0-0')) + 'A' :
-                parseInt(this.decimalPipe.transform(value, '1.0-2')) + ((value < 1000) ? 'W' : 'kW'),
+                parseInt(this.decimalPipe.transform(value, '1.0-0'), 10) + 'A' :
+                parseInt(this.decimalPipe.transform(value, '1.0-2'), 10) + 'kW',
               fontColor: this.defaultColor,
             },
             gridLines: {

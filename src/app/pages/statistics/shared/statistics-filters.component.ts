@@ -13,6 +13,7 @@ import { FilterParams } from '../../../types/GlobalType';
 import { SettingLink } from '../../../types/Setting';
 import { FilterType, TableFilterDef } from '../../../types/Table';
 import TenantComponents from '../../../types/TenantComponents';
+import { Utils } from '../../../utils/Utils';
 
 export interface StatisticsButtonGroup {
   name: string;
@@ -29,6 +30,25 @@ interface StatisticsFilterDef extends TableFilterDef {
   templateUrl: './statistics-filters.component.html',
 })
 export class StatisticsFiltersComponent implements OnInit {
+  @ViewChild(DaterangepickerComponent) public dateRangePickerComponent: DaterangepickerComponent;
+
+  @ViewChild(DaterangepickerDirective) public picker: DaterangepickerDirective;
+
+  @Output() public category = new EventEmitter();
+  @Output() public year = new EventEmitter();
+  @Output() public dateFrom = new EventEmitter();
+  @Output() public dateTo = new EventEmitter();
+  @Output() public dateRange = new EventEmitter();
+
+  @Input() public allYears ?= false;
+
+  @Output() public buttonOfScopeGroup = new EventEmitter();
+  @Input() public tableFiltersDef?: TableFilterDef[] = [];
+
+  @Output() public filters = new EventEmitter();
+  @Output() public update = new EventEmitter();
+  @Output() public export = new EventEmitter();
+
   public ongoingRefresh = false;
   public isAdmin!: boolean;
   public isOrganizationActive!: boolean;
@@ -38,26 +58,13 @@ export class StatisticsFiltersComponent implements OnInit {
   public sacLinksActive = false;
   public initDateRange = false;
   public dateRangeValue: any;
-  @ViewChild(DaterangepickerComponent) public dateRangePickerComponent: DaterangepickerComponent;
 
-  @ViewChild(DaterangepickerDirective) public picker: DaterangepickerDirective;
-  @Output() public category = new EventEmitter();
-  @Output() public year = new EventEmitter();
-  @Output() public dateFrom = new EventEmitter();
-  @Output() public dateTo = new EventEmitter();
-  @Output() public dateRange = new EventEmitter();
-
-  @Input() public allYears ?= false;
   public buttonsOfScopeGroup: StatisticsButtonGroup[] = [
     { name: 'month', title: 'statistics.graphic_title_month_x_axis', inactive: false },
     { name: 'total', title: 'statistics.total', inactive: false },
   ];
-  @Output() public buttonOfScopeGroup = new EventEmitter();
-  @Input() public tableFiltersDef?: TableFilterDef[] = [];
+
   public statFiltersDef: StatisticsFilterDef[] = [];
-  @Output() public filters = new EventEmitter();
-  @Output() public update = new EventEmitter();
-  @Output() public export = new EventEmitter();
 
   public selectedCategory = 'C';
   public activeButtonOfScopeGroup!: StatisticsButtonGroup;
@@ -65,7 +72,7 @@ export class StatisticsFiltersComponent implements OnInit {
   private language!: string;
 
 
-  constructor(
+  public constructor(
     private authorizationService: AuthorizationService,
     private translateService: TranslateService,
     private componentService: ComponentService,
@@ -100,7 +107,7 @@ export class StatisticsFiltersComponent implements OnInit {
       }
     });
     // Get SAC links
-    this.componentService.getSacSettings(true).subscribe((sacSettings) => {
+    this.componentService.getSacSettings().subscribe((sacSettings) => {
       if (this.isAdmin) {
         this.sacLinks = sacSettings.links;
       } else {
@@ -111,7 +118,7 @@ export class StatisticsFiltersComponent implements OnInit {
           }
         }
       }
-      if (Array.isArray(this.sacLinks) && this.sacLinks.length > 0) {
+      if (!Utils.isEmptyArray(this.sacLinks)) {
         this.sacLinksActive = true;
       } else {
         this.sacLinksActive = false;
@@ -186,9 +193,7 @@ export class StatisticsFiltersComponent implements OnInit {
 
   public filterChanged(filter: StatisticsFilterDef): void {
     // Update Filter
-    const foundFilter = this.statFiltersDef.find((filterDef) => {
-      return filterDef.id === filter.id;
-    });
+    const foundFilter = this.statFiltersDef.find((filterDef) => filterDef.id === filter.id);
     // Update value (if needed!)
     if (foundFilter) {
       foundFilter.currentValue = filter.currentValue;
@@ -319,7 +324,7 @@ export class StatisticsFiltersComponent implements OnInit {
           // Date
           if (filterDef.type === FilterType.DATE) {
             filterJson[filterDef.httpId] = filterDef.currentValue.toISOString();
-            // Dialog without multiple selections
+          // Dialog without multiple selections
           } else if (filterDef.type === FilterType.DIALOG_TABLE && !filterDef.multiple) {
             if (filterDef.currentValue.length > 0) {
               if (filterDef.currentValue[0].key !== FilterType.ALL_KEY) {
@@ -493,9 +498,7 @@ export class StatisticsFiltersComponent implements OnInit {
   private testIfFilterIsInitial(filterDef: StatisticsFilterDef): boolean {
     let filterIsInitial = true;
     if (filterDef.multiple) {
-      if ((filterDef.currentValue && Array.isArray(filterDef.currentValue)
-        && filterDef.currentValue.length > 0)
-        || (filterDef.label && filterDef.label !== '')) {
+      if (!Utils.isEmptyArray(filterDef.currentValue) || (filterDef.label && !Utils.isEmptyString(filterDef.label))) {
         filterIsInitial = false;
       }
     } else {

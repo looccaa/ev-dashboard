@@ -13,7 +13,8 @@ import { DialogTableDataSource } from '../dialog-table-data-source';
 @Injectable()
 export class LOG_ACTIONSDialogTableDataSource extends DialogTableDataSource<LogAction> {
   private reversed = false;
-  constructor(
+
+  public constructor(
     public spinnerService: SpinnerService,
     public translateService: TranslateService) {
     super(spinnerService, translateService);
@@ -33,9 +34,11 @@ export class LOG_ACTIONSDialogTableDataSource extends DialogTableDataSource<LogA
         LOG_ACTIONS.reverse();
         this.reversed = false;
       }
+      const selectedRowsActions = this.getSelectedRows().map(value => value.action.toString().toLowerCase());
       // const sortedActions = this.getSort().direction === 'desc' && !reversed ? LOG_ACTIONS.reverse() : LOG_ACTIONS;
       for (const [key, value] of Object.entries(LOG_ACTIONS)) {
-        if (value.value.toLowerCase().includes(searchValue.toLowerCase())) {
+        const actionValue = value.value.toLowerCase();
+        if (actionValue.includes(searchValue.toLowerCase()) || selectedRowsActions.includes(actionValue)) {
           actions.push({
             action: value.value as ServerAction,
             key: value.key,

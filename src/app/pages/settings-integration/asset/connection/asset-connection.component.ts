@@ -4,7 +4,7 @@ import { MatDialogRef } from '@angular/material/dialog';
 import { TranslateService } from '@ngx-translate/core';
 
 import { KeyValue } from '../../../../types/GlobalType';
-import { AssetConnectionSetting, AssetConnectionType, AssetGreencomConnectionType, AssetSchneiderConnectionType } from '../../../../types/Setting';
+import { AssetConnectionSetting, AssetConnectionType, AssetGreencomConnectionType, AssetIothinkConnectionType, AssetSchneiderConnectionType, AssetWitConnectionType } from '../../../../types/Setting';
 import { Constants } from '../../../../utils/Constants';
 import { AssetConnectionDialogComponent } from './asset-connection.dialog.component';
 
@@ -23,18 +23,23 @@ export class AssetConnectionComponent implements OnInit {
   public name!: AbstractControl;
   public type!: AbstractControl;
   public url!: AbstractControl;
+  public refreshIntervalMins!: AbstractControl;
 
   public schneiderConnection!: AssetSchneiderConnectionType;
   public greencomConnection!: AssetGreencomConnectionType;
+  public iothinkConnection!: AssetIothinkConnectionType;
+  public witConnection!: AssetWitConnectionType;
   public assetConnectionTypes: KeyValue[] = [
     { key: AssetConnectionType.SCHNEIDER, value: 'settings.asset.types.schneider' },
-    { key: AssetConnectionType.GREENCOM, value: 'settings.asset.types.greencom' }
+    { key: AssetConnectionType.GREENCOM, value: 'settings.asset.types.greencom' },
+    { key: AssetConnectionType.IOTHINK, value: 'settings.asset.types.iothink' },
+    { key: AssetConnectionType.WIT, value: 'settings.asset.types.wit' }
   ];
   public submitButtonTranslation!: any;
 
-  constructor(
-    private translateService: TranslateService) {
-  }
+  // eslint-disable-next-line no-useless-constructor
+  public constructor(
+    private translateService: TranslateService) { }
 
   public ngOnInit(): void {
     // Init Form
@@ -58,6 +63,10 @@ export class AssetConnectionComponent implements OnInit {
           Validators.required,
           Validators.pattern(Constants.URL_PATTERN),
         ])),
+      refreshIntervalMins: new FormControl('',
+        Validators.compose([
+          Validators.min(1),
+        ])),
     });
     // Form
     this.id = this.formGroup.controls['id'];
@@ -65,6 +74,7 @@ export class AssetConnectionComponent implements OnInit {
     this.description = this.formGroup.controls['description'];
     this.type = this.formGroup.controls['type'];
     this.url = this.formGroup.controls['url'];
+    this.refreshIntervalMins = this.formGroup.controls['refreshIntervalMins'];
     // Load current values if connection already exists
     this.loadAssetConnection();
     // Get Create/Update button translation
@@ -87,6 +97,9 @@ export class AssetConnectionComponent implements OnInit {
       if (this.currentAssetConnection.url) {
         this.formGroup.controls.url.setValue(this.currentAssetConnection.url);
       }
+      if (this.currentAssetConnection.refreshIntervalMins) {
+        this.formGroup.controls.refreshIntervalMins.setValue(this.currentAssetConnection.refreshIntervalMins);
+      }
     }
   }
 
@@ -97,6 +110,12 @@ export class AssetConnectionComponent implements OnInit {
         break;
       case AssetConnectionType.GREENCOM:
         this.greencomConnection = this.currentAssetConnection.greencomConnection;
+        break;
+      case AssetConnectionType.IOTHINK:
+        this.iothinkConnection = this.currentAssetConnection.iothinkConnection;
+        break;
+      case AssetConnectionType.WIT:
+        this.witConnection = this.currentAssetConnection.witConnection;
         break;
     }
   }
@@ -121,6 +140,21 @@ export class AssetConnectionComponent implements OnInit {
         assetConnection.id = new Date().getTime().toString();
       }
       this.dialogRef.close(assetConnection);
+    }
+  }
+
+  public typeChanged(type: AssetConnectionType) {
+    if (this.formGroup.controls.greencomConnection && type !== AssetConnectionType.GREENCOM) {
+      delete this.formGroup.controls.greencomConnection;
+    }
+    if (this.formGroup.controls.schneiderConnection && type !== AssetConnectionType.SCHNEIDER) {
+      delete this.formGroup.controls.schneiderConnection;
+    }
+    if (this.formGroup.controls.iothinkConnection && type !== AssetConnectionType.IOTHINK) {
+      delete this.formGroup.controls.iothinkConnection;
+    }
+    if (this.formGroup.controls.witConnection && type !== AssetConnectionType.WIT) {
+      delete this.formGroup.controls.witConnection;
     }
   }
 }

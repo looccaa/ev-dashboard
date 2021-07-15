@@ -1,5 +1,8 @@
 import { Router } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
+import { Observable } from 'rxjs';
+import { HTTPError } from 'types/HTTPError';
+import { Constants } from 'utils/Constants';
 
 import { CentralServerService } from '../../../../services/central-server.service';
 import { DialogService } from '../../../../services/dialog.service';
@@ -12,7 +15,7 @@ import { TableSynchronizeAction } from '../table-synchronize-action';
 
 export interface TableSyncCarCatalogsActionDef extends TableActionDef {
   action: (dialogService: DialogService, translateService: TranslateService, messageService: MessageService,
-    centralServerService: CentralServerService, spinnerService: SpinnerService, router: Router) => void;
+    centralServerService: CentralServerService, spinnerService: SpinnerService, router: Router, refresh?: () => Observable<void>) => void;
 }
 
 export class TableSyncCarCatalogsAction extends TableSynchronizeAction {
@@ -26,7 +29,7 @@ export class TableSyncCarCatalogsAction extends TableSynchronizeAction {
   }
 
   private synchronizeCarCatalogs(dialogService: DialogService, translateService: TranslateService, messageService: MessageService,
-    centralServerService: CentralServerService, spinnerService: SpinnerService, router: Router) {
+    centralServerService: CentralServerService, spinnerService: SpinnerService, router: Router, refresh?: () => Observable<void>) {
     dialogService.createAndShowYesNoDialog(
       translateService.instant('settings.car.synchronize_car_catalogs_dialog_title'),
       translateService.instant('settings.car.synchronize_car_catalogs_dialog_confirm'),
@@ -35,26 +38,27 @@ export class TableSyncCarCatalogsAction extends TableSynchronizeAction {
         spinnerService.show();
         centralServerService.synchronizeCarsCatalog().subscribe((synchronizeResponse) => {
           spinnerService.hide();
-          if (synchronizeResponse.inError) {
-            messageService.showErrorMessage(
-              translateService.instant('cars.synchronize_car_catalogs_partial',
-                {
-                  synchronized: synchronizeResponse.inSuccess,
-                  inError: synchronizeResponse.inError,
-                },
-              ));
-          } else if (synchronizeResponse.inSuccess === 0) {
-            messageService.showSuccessMessage(
-              translateService.instant('cars.synchronize_car_catalogs_up_to_date'));
+          if (synchronizeResponse.status === Constants.REST_RESPONSE_SUCCESS) {
+            messageService.showSuccessMessage('cars.synchronize_car_catalogs_success');
           } else {
-            messageService.showSuccessMessage(
-              translateService.instant('cars.synchronize_car_catalogs_success',
-                { synchronized: synchronizeResponse.inSuccess },
-              ));
+            Utils.handleError(JSON.stringify(response),
+              messageService, 'cars.synchronize_car_catalogs_error');
+          }
+          if (refresh) {
+            refresh().subscribe();
           }
         }, (error) => {
           spinnerService.hide();
-          Utils.handleHttpError(error, router, messageService, centralServerService, 'cars.synchronize_car_catalogs_error');
+          // Check status
+          switch (error.status) {
+            // Email already exists
+            case HTTPError.CANNOT_ACQUIRE_LOCK:
+              messageService.showWarningMessage('cars.synchronize_car_catalogs_ongoing');
+              break;
+            // Unexpected error`
+            default:
+              Utils.handleHttpError(error, router, messageService, centralServerService, 'cars.synchronize_car_catalogs_error');
+          }
         });
       }
     });

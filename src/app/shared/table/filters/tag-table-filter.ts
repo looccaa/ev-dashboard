@@ -3,7 +3,7 @@ import { FilterType, TableFilterDef } from '../../../types/Table';
 import { TableFilter } from './table-filter';
 
 export class TagTableFilter extends TableFilter {
-  constructor(dependentFilters?: TableFilterDef[]) {
+  public constructor(dependentFilters?: TableFilterDef[]) {
     super();
     // Define filter
     const filterDef: TableFilterDef = {
@@ -17,7 +17,7 @@ export class TagTableFilter extends TableFilter {
       dialogComponent: TagsDialogComponent,
       multiple: true,
       cleared: true,
-      dependentFilters: dependentFilters,
+      dependentFilters,
     };
     // Set
     this.setFilterDef(filterDef);

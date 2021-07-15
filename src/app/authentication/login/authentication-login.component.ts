@@ -17,19 +17,13 @@ import { Constants } from '../../utils/Constants';
 import { Users } from '../../utils/Users';
 import { Utils } from '../../utils/Utils';
 
-declare var $: any;
+declare let $: any;
 
 @Component({
   selector: 'app-authentication-login',
   templateUrl: './authentication-login.component.html',
 })
 export class AuthenticationLoginComponent implements OnInit, OnDestroy {
-  private toggleButton: any;
-  private sidebarVisible: boolean;
-  private messages!: Record<string, string>;
-  private subDomain: string;
-  private nativeElement: Node;
-
   public formGroup: FormGroup;
   public email: AbstractControl;
   public returnUrl!: string;
@@ -39,7 +33,13 @@ export class AuthenticationLoginComponent implements OnInit, OnDestroy {
   public hidePassword = true;
   public tenantLogo = Constants.TENANT_DEFAULT_LOGO;
 
-  constructor(
+  private toggleButton: any;
+  private sidebarVisible: boolean;
+  private messages!: Record<string, string>;
+  private subDomain: string;
+  private nativeElement: Node;
+
+  public constructor(
     private element: ElementRef,
     private centralServerService: CentralServerService,
     private route: ActivatedRoute,
@@ -51,7 +51,8 @@ export class AuthenticationLoginComponent implements OnInit, OnDestroy {
     private windowService: WindowService,
     private translateService: TranslateService,
     private authorizationService: AuthorizationService) {
-
+    // Reset the spinner
+    this.spinnerService.hide();
     // Set
     this.nativeElement = element.nativeElement;
     this.sidebarVisible = false;
@@ -107,11 +108,11 @@ export class AuthenticationLoginComponent implements OnInit, OnDestroy {
       this.returnUrl += `#${this.route.snapshot.fragment}`;
     }
     // Auto Logon in case of demo users
-    const _email = this.route.snapshot.queryParamMap.get('email');
-    const _password = this.route.snapshot.queryParamMap.get('password');
-    if (_email === 'demo.demo@sap.com' && _password) {
-      this.email.setValue(_email);
-      this.password.setValue(_password);
+    const email = this.route.snapshot.queryParamMap.get('email');
+    const password = this.route.snapshot.queryParamMap.get('password');
+    if (email === 'demo.demo@sap.com' && password) {
+      this.email.setValue(email);
+      this.password.setValue(password);
       this.acceptEula.setValue('true');
       this.login(this.formGroup.value);
     }
@@ -178,7 +179,7 @@ export class AuthenticationLoginComponent implements OnInit, OnDestroy {
         // Account Pending
         case HTTPError.USER_ACCOUNT_PENDING_ERROR:
           // Pending Users from the Super Tenant should not be able to request an activation email
-          if (this.subDomain !== '') {
+          if (!Utils.isEmptyString(this.subDomain)) {
             // Usual Users
             this.messageService.showWarningMessage(this.messages['account_pending']);
             // No Create and show dialog data

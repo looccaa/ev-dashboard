@@ -3,9 +3,9 @@ import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
 import { Observable } from 'rxjs';
+import { AuthorizationService } from 'services/authorization.service';
 import { TableSiteGenerateQrCodeConnectorAction, TableSiteGenerateQrCodeConnectorsActionDef } from 'shared/table/actions/sites/table-site-generate-qr-code-connector-action';
 
-import { AuthorizationService } from '../../../../services/authorization.service';
 import { CentralServerNotificationService } from '../../../../services/central-server-notification.service';
 import { CentralServerService } from '../../../../services/central-server.service';
 import { DialogService } from '../../../../services/dialog.service';
@@ -14,6 +14,7 @@ import { SpinnerService } from '../../../../services/spinner.service';
 import { AppDatePipe } from '../../../../shared/formatters/app-date.pipe';
 import { TableExportOCPPParamsAction, TableExportOCPPParamsActionDef } from '../../../../shared/table/actions/charging-stations/table-export-ocpp-params-action';
 import { TableAssignUsersToSiteAction, TableAssignUsersToSiteActionDef } from '../../../../shared/table/actions/sites/table-assign-users-to-site-action';
+import { TableViewAssignedUsersOfSiteAction, TableViewAssignedUsersOfSiteActionDef } from '../../../../shared/table/actions/sites/table-assign-view-users-of-site-action';
 import { TableCreateSiteAction, TableCreateSiteActionDef } from '../../../../shared/table/actions/sites/table-create-site-action';
 import { TableDeleteSiteAction, TableDeleteSiteActionDef } from '../../../../shared/table/actions/sites/table-delete-site-action';
 import { TableEditSiteAction, TableEditSiteActionDef } from '../../../../shared/table/actions/sites/table-edit-site-action';
@@ -40,12 +41,15 @@ import { SiteDialogComponent } from '../site/site-dialog.component';
 export class SitesListTableDataSource extends TableDataSource<Site> {
   private editAction = new TableEditSiteAction().getActionDef();
   private assignUsersToSite = new TableAssignUsersToSiteAction().getActionDef();
+  private viewUsersOfSite = new TableViewAssignedUsersOfSiteAction().getActionDef();
   private deleteAction = new TableDeleteSiteAction().getActionDef();
   private viewAction = new TableViewSiteAction().getActionDef();
   private exportOCPPParamsAction = new TableExportOCPPParamsAction().getActionDef();
   private siteGenerateQrCodeConnectorAction = new TableSiteGenerateQrCodeConnectorAction().getActionDef();
+  private createAction = new TableCreateSiteAction().getActionDef();
 
-  constructor(
+
+  public constructor(
     public spinnerService: SpinnerService,
     public translateService: TranslateService,
     private messageService: MessageService,
@@ -53,9 +57,9 @@ export class SitesListTableDataSource extends TableDataSource<Site> {
     private router: Router,
     private dialog: MatDialog,
     private centralServerNotificationService: CentralServerNotificationService,
+    private authorizationService: AuthorizationService,
     private centralServerService: CentralServerService,
-    private datePipe: AppDatePipe,
-    private authorizationService: AuthorizationService) {
+    private datePipe: AppDatePipe) {
     super(spinnerService, translateService);
     this.setStaticFilters([{ WithCompany: true }]);
     this.initDataSource();
@@ -70,15 +74,16 @@ export class SitesListTableDataSource extends TableDataSource<Site> {
       // Get Sites
       this.centralServerService.getSites(this.buildFilterValues(),
         this.getPaging(), this.getSorting()).subscribe((sites) => {
-          // Ok
-          observer.next(sites);
-          observer.complete();
-        }, (error) => {
-          // Show error
-          Utils.handleHttpError(error, this.router, this.messageService, this.centralServerService, 'general.error_backend');
-          // Error
-          observer.error(error);
-        });
+        this.createAction.visible = sites.canCreate;
+        // Ok
+        observer.next(sites);
+        observer.complete();
+      }, (error) => {
+        // Show error
+        Utils.handleHttpError(error, this.router, this.messageService, this.centralServerService, 'general.error_backend');
+        // Error
+        observer.error(error);
+      });
     });
   }
 
@@ -92,7 +97,7 @@ export class SitesListTableDataSource extends TableDataSource<Site> {
   }
 
   public buildTableColumnDefs(): TableColumnDef[] {
-    const tableColumnDef: TableColumnDef[] = [
+    return [
       {
         id: 'name',
         name: 'sites.name',
@@ -138,92 +143,75 @@ export class SitesListTableDataSource extends TableDataSource<Site> {
         class: 'col-20p',
         sortable: true,
       },
+      {
+        id: 'createdOn',
+        name: 'users.created_on',
+        formatter: (createdOn: Date) => this.datePipe.transform(createdOn),
+        headerClass: 'col-15em',
+        class: 'col-15em',
+        sortable: true,
+      },
+      {
+        id: 'createdBy',
+        name: 'users.created_by',
+        formatter: (user: User) => Utils.buildUserFullName(user),
+        headerClass: 'col-15em',
+        class: 'col-15em',
+      },
+      {
+        id: 'lastChangedOn',
+        name: 'users.changed_on',
+        formatter: (lastChangedOn: Date) => this.datePipe.transform(lastChangedOn),
+        headerClass: 'col-15em',
+        class: 'col-15em',
+        sortable: true,
+      },
+      {
+        id: 'lastChangedBy',
+        name: 'users.changed_by',
+        formatter: (user: User) => Utils.buildUserFullName(user),
+        headerClass: 'col-15em',
+        class: 'col-15em',
+      },
     ];
-    if (this.authorizationService.isAdmin()) {
-      tableColumnDef.push(
-        {
-          id: 'createdOn',
-          name: 'users.created_on',
-          formatter: (createdOn: Date) => this.datePipe.transform(createdOn),
-          headerClass: 'col-15em',
-          class: 'col-15em',
-          sortable: true,
-        },
-        {
-          id: 'createdBy',
-          name: 'users.created_by',
-          formatter: (user: User) => Utils.buildUserFullName(user),
-          headerClass: 'col-15em',
-          class: 'col-15em',
-        },
-        {
-          id: 'lastChangedOn',
-          name: 'users.changed_on',
-          formatter: (lastChangedOn: Date) => this.datePipe.transform(lastChangedOn),
-          headerClass: 'col-15em',
-          class: 'col-15em',
-          sortable: true,
-        },
-        {
-          id: 'lastChangedBy',
-          name: 'users.changed_by',
-          formatter: (user: User) => Utils.buildUserFullName(user),
-          headerClass: 'col-15em',
-          class: 'col-15em',
-        },
-      );
-    }
-    return tableColumnDef;
   }
 
   public buildTableActionsDef(): TableActionDef[] {
     const tableActionsDef = super.buildTableActionsDef();
-    if (this.authorizationService.canCreateSite()) {
-      return [
-        new TableCreateSiteAction().getActionDef(),
-        ...tableActionsDef,
-      ];
-    }
-    return tableActionsDef;
+    return [
+      this.createAction,
+      ...tableActionsDef,
+    ];
   }
 
   public buildTableDynamicRowActions(site: Site): TableActionDef[] {
-    const actions = [];
+    const rowActions = [];
     // Check if GPS is available
     const openInMaps = new TableOpenInMapsAction().getActionDef();
     openInMaps.disabled = !Utils.containsAddressGPSCoordinates(site.address);
-    let moreActions;
-    if (site.issuer) {
-      if (this.authorizationService.isAdmin() ||
-        this.authorizationService.isSiteAdmin(site.id) ||
-        this.authorizationService.isSiteOwner(site.id)) {
-        actions.push(this.editAction);
-        actions.push(this.assignUsersToSite);
-        moreActions = new TableMoreAction([
-          this.exportOCPPParamsAction,
-          openInMaps,
-          this.siteGenerateQrCodeConnectorAction
-        ]).getActionDef();
-      } else {
-        actions.push(this.viewAction);
-        moreActions = new TableMoreAction([
-          openInMaps,
-        ]).getActionDef();
-      }
-      if (this.authorizationService.canDeleteSite()) {
-        if (moreActions.dropdownActions) {
-          moreActions.dropdownActions.push(this.deleteAction);
-        }
-      }
+    const moreActions = new TableMoreAction([]);
+    if (site.canUpdate) {
+      rowActions.push(this.editAction);
     } else {
-      actions.push(this.viewAction);
-      actions.push(this.assignUsersToSite);
-      moreActions = new TableMoreAction([
-        openInMaps,
-      ]).getActionDef();
+      rowActions.push(this.viewAction);
     }
-    actions.push(moreActions);
-    return actions;
+    if (site.canAssignUsers || site.canUnassignUsers) {
+      rowActions.push(this.assignUsersToSite);
+    } else if (this.authorizationService.canListUsers()) {
+      rowActions.push(this.viewUsersOfSite);
+    }
+    if (site.canExportOCPPParams) {
+      moreActions.addActionInMoreActions(this.exportOCPPParamsAction);
+    }
+    if (site.canGenerateQrCode) {
+      moreActions.addActionInMoreActions(this.siteGenerateQrCodeConnectorAction);
+    }
+    if (site.canDelete) {
+      moreActions.addActionInMoreActions(this.deleteAction);
+    }
+    moreActions.addActionInMoreActions(openInMaps);
+    rowActions.push(moreActions.getActionDef());
+    return rowActions;
   }
 
   public actionTriggered(actionDef: TableActionDef) {
@@ -232,7 +220,8 @@ export class SitesListTableDataSource extends TableDataSource<Site> {
       // Add
       case SiteButtonAction.CREATE_SITE:
         if (actionDef.action) {
-          (actionDef as TableCreateSiteActionDef).action(SiteDialogComponent, this.dialog, this.refreshData.bind(this));
+          (actionDef as TableCreateSiteActionDef).action(SiteDialogComponent,
+            this.dialog, this.refreshData.bind(this));
         }
     }
   }
@@ -241,18 +230,26 @@ export class SitesListTableDataSource extends TableDataSource<Site> {
     switch (actionDef.id) {
       case SiteButtonAction.EDIT_SITE:
         if (actionDef.action) {
-          (actionDef as TableEditSiteActionDef).action(SiteDialogComponent, site, this.dialog, this.refreshData.bind(this));
+          (actionDef as TableEditSiteActionDef).action(SiteDialogComponent, this.dialog,
+            { dialogData: site }, this.refreshData.bind(this));
         }
         break;
       case SiteButtonAction.VIEW_SITE:
         if (actionDef.action) {
-          (actionDef as TableViewSiteActionDef).action(SiteDialogComponent, site, this.dialog, this.refreshData.bind(this));
+          (actionDef as TableViewSiteActionDef).action(SiteDialogComponent, this.dialog,
+            { dialogData: site }, this.refreshData.bind(this));
         }
         break;
       case SiteButtonAction.ASSIGN_USERS_TO_SITE:
         if (actionDef.action) {
-          (actionDef as TableAssignUsersToSiteActionDef).action(
-            SiteUsersDialogComponent, site, this.dialog, this.refreshData.bind(this));
+          (actionDef as TableAssignUsersToSiteActionDef).action(SiteUsersDialogComponent, { dialogData: site },
+            this.dialog, this.refreshData.bind(this));
+        }
+        break;
+      case SiteButtonAction.VIEW_USERS_OF_SITE:
+        if (actionDef.action) {
+          (actionDef as TableViewAssignedUsersOfSiteActionDef).action(SiteUsersDialogComponent, { dialogData: site },
+            this.dialog, this.refreshData.bind(this));
         }
         break;
       case SiteButtonAction.DELETE_SITE:
@@ -274,14 +271,14 @@ export class SitesListTableDataSource extends TableDataSource<Site> {
             this.centralServerService, this.router, this.spinnerService);
         }
         break;
-        case ChargingStationButtonAction.GENERATE_QR_CODE:
-          if (actionDef.action) {
-            (actionDef as TableSiteGenerateQrCodeConnectorsActionDef).action(
-              site, this.translateService, this.spinnerService,
-              this.messageService, this.centralServerService, this.router
-            );
-          }
-          break;
+      case ChargingStationButtonAction.GENERATE_QR_CODE:
+        if (actionDef.action) {
+          (actionDef as TableSiteGenerateQrCodeConnectorsActionDef).action(
+            site, this.translateService, this.spinnerService,
+            this.messageService, this.centralServerService, this.router
+          );
+        }
+        break;
     }
   }
 
@@ -293,9 +290,13 @@ export class SitesListTableDataSource extends TableDataSource<Site> {
   }
 
   public buildTableFiltersDef(): TableFilterDef[] {
-    return [
-      new IssuerFilter().getFilterDef(),
-      new CompanyTableFilter().getFilterDef(),
+    const issuerFilter = new IssuerFilter().getFilterDef();
+    const filters = [
+      issuerFilter,
     ];
+    if (this.authorizationService.canListCompanies()) {
+      filters.push(new CompanyTableFilter([issuerFilter]).getFilterDef());
+    }
+    return filters;
   }
 }

@@ -6,6 +6,7 @@ import { TranslateService } from '@ngx-translate/core';
 
 import { AuthorizationService } from '../../../services/authorization.service';
 import { CentralServerService } from '../../../services/central-server.service';
+import { ComponentService } from '../../../services/component.service';
 import { ConfigService } from '../../../services/config.service';
 import { DialogService } from '../../../services/dialog.service';
 import { MessageService } from '../../../services/message.service';
@@ -15,7 +16,6 @@ import { SiteAreasDialogComponent } from '../../../shared/dialogs/site-areas/sit
 import { Asset, AssetTypes } from '../../../types/Asset';
 import { KeyValue, RestResponse } from '../../../types/GlobalType';
 import { HTTPError } from '../../../types/HTTPError';
-import { AssetSettings } from '../../../types/Setting';
 import { SiteArea } from '../../../types/SiteArea';
 import TenantComponents from '../../../types/TenantComponents';
 import { Constants } from '../../../utils/Constants';
@@ -32,6 +32,7 @@ export class AssetComponent implements OnInit {
   @Input() public dialogRef!: MatDialogRef<any>;
 
   public parentErrorStateMatcher = new ParentErrorStateMatcher();
+  public isSmartChargingComponentActive = false;
   public isAdmin = false;
   public image: string = Constants.NO_IMAGE;
   public imageHasChanged = false;
@@ -46,27 +47,32 @@ export class AssetComponent implements OnInit {
   public siteArea!: AbstractControl;
   public siteAreaID!: AbstractControl;
   public assetType!: AbstractControl;
+  public excludeFromSmartCharging!: AbstractControl;
+  public variationThresholdPercent!: AbstractControl;
   public fluctuationPercent!: AbstractControl;
   public staticValueWatt!: AbstractControl;
   public coordinates!: FormArray;
   public longitude!: AbstractControl;
   public latitude!: AbstractControl;
   public dynamicAsset!: AbstractControl;
+  public usesPushAPI!: AbstractControl;
   public connectionID!: AbstractControl;
   public meterID!: AbstractControl;
   public asset!: Asset;
 
-  constructor(
-      private authorizationService: AuthorizationService,
-      private centralServerService: CentralServerService,
-      private messageService: MessageService,
-      private spinnerService: SpinnerService,
-      private configService: ConfigService,
-      private activatedRoute: ActivatedRoute,
-      private dialog: MatDialog,
-      private dialogService: DialogService,
-      private translateService: TranslateService,
-      private router: Router) {
+  public constructor(
+    private authorizationService: AuthorizationService,
+    private centralServerService: CentralServerService,
+    private componentService: ComponentService,
+    private messageService: MessageService,
+    private spinnerService: SpinnerService,
+    private configService: ConfigService,
+    private activatedRoute: ActivatedRoute,
+    private dialog: MatDialog,
+    private dialogService: DialogService,
+    private translateService: TranslateService,
+    private router: Router
+  ) {
     this.maxSize = this.configService.getAsset().maxImageKb;
     // Check auth
     if (this.activatedRoute.snapshot.params['id'] &&
@@ -80,6 +86,7 @@ export class AssetComponent implements OnInit {
     this.loadAssetConnections();
     // Get admin flag
     this.isAdmin = this.authorizationService.isAdmin() || this.authorizationService.isSuperAdmin();
+    this.isSmartChargingComponentActive = this.componentService.isActive(TenantComponents.SMART_CHARGING);
   }
 
   public ngOnInit() {
@@ -89,6 +96,7 @@ export class AssetComponent implements OnInit {
       name: new FormControl('',
         Validators.compose([
           Validators.required,
+          Validators.maxLength(255),
         ])),
       siteArea: new FormControl('',
         Validators.compose([
@@ -100,6 +108,12 @@ export class AssetComponent implements OnInit {
           Validators.required,
         ])
       ),
+      excludeFromSmartCharging: new FormControl(''),
+      variationThresholdPercent: new FormControl('',
+        Validators.compose([
+          Validators.max(100),
+          Validators.pattern('^[+]?[0-9]*$'),
+        ])),
       fluctuationPercent: new FormControl('',
         Validators.compose([
           Validators.max(100),
@@ -129,6 +143,7 @@ export class AssetComponent implements OnInit {
           Validators.required,
         ])),
       dynamicAsset: new FormControl(false),
+      usesPushAPI: new FormControl(false),
       meterID: new FormControl('',
         Validators.compose([
           Validators.required,
@@ -140,12 +155,15 @@ export class AssetComponent implements OnInit {
     this.siteArea = this.formGroup.controls['siteArea'];
     this.siteAreaID = this.formGroup.controls['siteAreaID'];
     this.assetType = this.formGroup.controls['assetType'];
+    this.excludeFromSmartCharging = this.formGroup.controls['excludeFromSmartCharging'];
+    this.variationThresholdPercent = this.formGroup.controls['variationThresholdPercent'];
     this.fluctuationPercent = this.formGroup.controls['fluctuationPercent'];
     this.staticValueWatt = this.formGroup.controls['staticValueWatt'];
     this.coordinates = this.formGroup.controls['coordinates'] as FormArray;
     this.longitude = this.coordinates.at(0);
     this.latitude = this.coordinates.at(1);
     this.dynamicAsset = this.formGroup.controls['dynamicAsset'];
+    this.usesPushAPI = this.formGroup.controls['usesPushAPI'];
     this.connectionID = this.formGroup.controls['connectionID'];
     this.meterID = this.formGroup.controls['meterID'];
     // Disable connection form by default
@@ -194,10 +212,15 @@ export class AssetComponent implements OnInit {
       if (this.asset.assetType) {
         this.formGroup.controls.assetType.setValue(this.asset.assetType);
       }
-      if (this.asset.fluctuationPercent){
+      if (this.asset.excludeFromSmartCharging) {
+        this.formGroup.controls.excludeFromSmartCharging.setValue(this.asset.excludeFromSmartCharging);
+      }
+      if (this.asset.variationThresholdPercent) {
+        this.formGroup.controls.variationThresholdPercent.setValue(this.asset.variationThresholdPercent);
+      }
+      if (this.asset.fluctuationPercent) {
         this.formGroup.controls.fluctuationPercent.setValue(this.asset.fluctuationPercent);
       }
-
       if (!Utils.isUndefined(this.asset.staticValueWatt)) {
         this.formGroup.controls.staticValueWatt.setValue(this.asset.staticValueWatt);
       }
@@ -207,6 +230,7 @@ export class AssetComponent implements OnInit {
       }
       if (this.asset.dynamicAsset) {
         this.formGroup.controls.dynamicAsset.setValue(this.asset.dynamicAsset);
+        this.formGroup.controls.usesPushAPI.setValue(this.asset.usesPushAPI);
         this.disableConnectionDetails();
       }
       if (this.asset.connectionID) {
@@ -236,12 +260,20 @@ export class AssetComponent implements OnInit {
   }
 
   public disableConnectionDetails() {
-    if (Utils.convertToBoolean(this.dynamicAsset.value)) {
+    if (Utils.convertToBoolean(this.dynamicAsset.value && !Utils.convertToBoolean(this.usesPushAPI.value))) {
       this.connectionID.enable();
       this.meterID.enable();
     } else {
       this.connectionID.disable();
       this.meterID.disable();
+      this.connectionID.reset();
+      this.meterID.reset();
+    }
+    if (!Utils.convertToBoolean(this.dynamicAsset.value)) {
+      this.usesPushAPI.reset();
+      this.usesPushAPI.disable();
+    } else {
+      this.usesPushAPI.enable();
     }
   }
 
@@ -320,13 +352,13 @@ export class AssetComponent implements OnInit {
       validateButtonTitle: 'general.select',
       sitesAdminOnly: true,
       rowMultipleSelection: false,
-      staticFilter: {​​
+      staticFilter: {
         Issuer: true
-      }​​,
+      },
     };
     this.dialog.open(SiteAreasDialogComponent, dialogConfig)
       .afterClosed().subscribe((result) => {
-        if (result && result.length > 0 && result[0].objectRef) {
+        if (!Utils.isEmptyArray(result) && result[0].objectRef) {
           const siteArea = ((result[0].objectRef) as SiteArea);
           this.formGroup.markAsDirty();
           this.formGroup.controls.siteArea.setValue(siteArea.name);
@@ -386,6 +418,24 @@ export class AssetComponent implements OnInit {
       });
   }
 
+  public loadAssetConnections() {
+    this.spinnerService.show();
+    this.componentService.getAssetSettings().subscribe((assetSettings) => {
+      this.spinnerService.hide();
+      if (assetSettings) {
+        const connections = [] as KeyValue[];
+        for (const connection of assetSettings.asset.connections) {
+          connections.push({ key: connection.id, value: connection.name });
+        }
+        this.assetConnections = connections;
+      }
+    }, (error) => {
+      this.spinnerService.hide();
+      Utils.handleHttpError(error, this.router, this.messageService,
+        this.centralServerService, 'assets.asset_settings_error');
+    });
+  }
+
   private createAsset(asset: Asset) {
     this.spinnerService.show();
     // Set coordinates
@@ -414,25 +464,6 @@ export class AssetComponent implements OnInit {
           Utils.handleHttpError(error, this.router, this.messageService,
             this.centralServerService, 'assets.create_error');
       }
-    });
-  }
-
-  public loadAssetConnections() {
-    this.spinnerService.show();
-    this.centralServerService.getSettings(TenantComponents.ASSET).subscribe((response) => {
-      this.spinnerService.hide();
-      if (response && response.result && response.result.length > 0) {
-        const assetSetting = response.result[0] as AssetSettings;
-        const connections = [] as KeyValue[];
-        for (const connection of assetSetting.content.asset.connections) {
-          connections.push({ key: connection.id, value: connection.name });
-        }
-        this.assetConnections = connections;
-      }
-    }, (error) => {
-      this.spinnerService.hide();
-      Utils.handleHttpError(error, this.router, this.messageService,
-        this.centralServerService, 'assets.asset_settings_error');
     });
   }
 

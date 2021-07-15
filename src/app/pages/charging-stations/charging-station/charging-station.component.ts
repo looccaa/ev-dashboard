@@ -14,7 +14,7 @@ import { MessageService } from '../../../services/message.service';
 import { SpinnerService } from '../../../services/spinner.service';
 import { ChargingStation } from '../../../types/ChargingStation';
 import { KeyValue, RestResponse } from '../../../types/GlobalType';
-import { HTTPAuthError, HTTPError } from '../../../types/HTTPError';
+import { HTTPError } from '../../../types/HTTPError';
 import { Utils } from '../../../utils/Utils';
 import { ChargingStationParametersComponent } from './parameters/charging-station-parameters.component';
 
@@ -39,7 +39,7 @@ export class ChargingStationComponent implements OnInit {
   public isOCPPParametersPaneDisabled = false;
   public activeTabIndex = 0;
 
-  constructor(
+  public constructor(
     private authorizationService: AuthorizationService,
     private spinnerService: SpinnerService,
     private centralServerService: CentralServerService,
@@ -97,8 +97,12 @@ export class ChargingStationComponent implements OnInit {
   public saveChargingStation(chargingStation: ChargingStation) {
     // Clone
     const chargingStationToSave = Utils.cloneObject(chargingStation) as ChargingStation;
-    // Do not save charge point
-    delete chargingStationToSave.chargePoints;
+    if (!chargingStationToSave.manualConfiguration) {
+      // Do not save charge point
+      delete chargingStationToSave.chargePoints;
+    } else {
+      Utils.adjustChargePoints(chargingStationToSave);
+    }
     // Save
     this.spinnerService.show();
     this.centralServerService.updateChargingStationParams(chargingStationToSave).subscribe((response) => {
@@ -113,14 +117,14 @@ export class ChargingStationComponent implements OnInit {
     }, (error) => {
       this.spinnerService.hide();
       switch (error.status) {
-        case HTTPAuthError.ERROR:
-          this.messageService.showErrorMessage('chargers.change_config_error');
-          break;
         case HTTPError.OBJECT_DOES_NOT_EXIST_ERROR:
           this.messageService.showErrorMessage('chargers.change_config_error');
           break;
         case HTTPError.THREE_PHASE_CHARGER_ON_SINGLE_PHASE_SITE_AREA:
           this.messageService.showErrorMessage('chargers.change_config_phase_error');
+          break;
+        case HTTPError.CHARGE_POINT_NOT_VALID:
+          this.messageService.showErrorMessage('chargers.charge_point_connectors_error');
           break;
         default:
           Utils.handleHttpError(error, this.router, this.messageService,
@@ -143,4 +147,5 @@ export class ChargingStationComponent implements OnInit {
     Utils.checkAndSaveAndCloseDialog(this.formGroup, this.dialogService, this.translateService,
       this.saveChargingStation.bind(this), this.closeDialog.bind(this));
   }
+
 }

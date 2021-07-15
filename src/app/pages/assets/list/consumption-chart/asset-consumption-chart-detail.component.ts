@@ -13,11 +13,11 @@ export class AssetConsumptionChartDetailComponent extends CellContentTemplateDir
   @Input() public row!: Asset;
   @ViewChild('assetConsumptionChart') public chartComponent!: AssetConsumptionChartComponent;
   public assetID!: string;
-  public assetType!: AssetType
+  public assetType!: AssetType;
 
   public ngOnInit(): void {
-      this.assetID = this.row.id as string;
-      this.assetType = this.row.assetType;
+    this.assetID = this.row.id as string;
+    this.assetType = this.row.assetType;
   }
 
   public ngOnChanges(changes: SimpleChanges): void {

@@ -1,5 +1,6 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { TranslateService } from '@ngx-translate/core';
+import { ChartData } from 'chart.js';
 
 import { CentralServerService } from '../../../services/central-server.service';
 import { LocaleService } from '../../../services/locale.service';
@@ -11,7 +12,7 @@ import { SiteTableFilter } from '../../../shared/table/filters/site-table-filter
 import { UserTableFilter } from '../../../shared/table/filters/user-table-filter';
 import { FilterParams } from '../../../types/GlobalType';
 import { TableFilterDef } from '../../../types/Table';
-import { ChartData, SimpleChart } from '../shared/chart-utilities';
+import { SimpleChart } from '../shared/chart-utilities';
 import { StatisticsBuildService } from '../shared/statistics-build.service';
 import { StatisticsExportService } from '../shared/statistics-export.service';
 
@@ -21,6 +22,9 @@ import { StatisticsExportService } from '../shared/statistics-export.service';
 })
 
 export class StatisticsTransactionsComponent implements OnInit {
+  @ViewChild('transactionsBarChart', { static: true }) public ctxBarChart!: ElementRef;
+  @ViewChild('transactionsPieChart', { static: true }) public ctxPieChart!: ElementRef;
+
   public totalTransactions = 0;
   public selectedChart!: string;
   public selectedCategory!: string;
@@ -30,9 +34,6 @@ export class StatisticsTransactionsComponent implements OnInit {
   public allFiltersDef: TableFilterDef[] = [];
   public chartsInitialized = false;
 
-  @ViewChild('transactionsBarChart', { static: true }) public ctxBarChart!: ElementRef;
-  @ViewChild('transactionsPieChart', { static: true }) public ctxPieChart!: ElementRef;
-
   private filterParams!: FilterParams;
   private barChart!: SimpleChart;
   private pieChart!: SimpleChart;
@@ -40,7 +41,7 @@ export class StatisticsTransactionsComponent implements OnInit {
   private pieChartData!: ChartData;
   private language!: string;
 
-  constructor(
+  public constructor(
     private centralServerService: CentralServerService,
     private translateService: TranslateService,
     private localeService: LocaleService,

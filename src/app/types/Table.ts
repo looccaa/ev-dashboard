@@ -3,6 +3,7 @@ import { SortDirection } from '@angular/material/sort';
 import * as moment from 'moment';
 
 import { AssetButtonAction } from './Asset';
+import { AuthorizationActions } from './Authorization';
 import { BillingButtonAction } from './Billing';
 import { CarButtonAction } from './Car';
 import { ChargingStationButtonAction } from './ChargingStation';
@@ -10,18 +11,25 @@ import { CompanyButtonAction } from './Company';
 import { ButtonAction, KeyValue } from './GlobalType';
 import { LogButtonAction } from './Log';
 import { OcpiButtonAction } from './ocpi/OCPIEndpoint';
+import { OicpButtonAction } from './oicp/OICPEndpoint';
+import { RegistrationTokenButtonAction } from './RegistrationToken';
 import { SiteButtonAction } from './Site';
 import { SiteAreaButtonAction } from './SiteArea';
 import { TenantButtonAction } from './Tenant';
 import { TransactionButtonAction } from './Transaction';
 import { UserButtonAction } from './User';
 
-export interface Data {
+export interface TableData extends AuthorizationActions {
   id: string | number;
-  key: string;
+  key?: string;
   isSelected?: boolean;
   isSelectable?: boolean;
   isExpanded?: boolean;
+}
+
+export enum TableDataSourceMode {
+  READ_WRITE = 'RW',
+  READ_ONLY = 'RO',
 }
 
 export interface TableFilterDef {
@@ -110,14 +118,15 @@ export enum DialogType {
 
 export interface TableActionDef {
   id: ButtonAction | CompanyButtonAction | TenantButtonAction | SiteAreaButtonAction | ChargingStationButtonAction |
-  UserButtonAction | TransactionButtonAction | SiteButtonAction | OcpiButtonAction | AssetButtonAction |
-  BillingButtonAction | CarButtonAction | LogButtonAction;
+  UserButtonAction | TransactionButtonAction | SiteButtonAction | OcpiButtonAction | OicpButtonAction | AssetButtonAction |
+  BillingButtonAction | CarButtonAction | LogButtonAction | RegistrationTokenButtonAction;
   type: ActionType;
   currentValue?: any;
   name: string;
   icon?: string;
   color?: ButtonColor;
   disabled?: boolean;
+  visible?: boolean;
   isDropdownMenu?: boolean;
   dropdownActions?: TableActionDef[];
   tooltip: string;
@@ -179,6 +188,7 @@ export interface TableColumnDef {
   angularComponent?: any;
   defaultValue?: any;
   additionalParameters?: any;
+  visible?: boolean;
 }
 
 export interface TableSearch {

@@ -11,21 +11,21 @@ import { UsersDialogTableDataSource } from './users-dialog-table-data-source';
   templateUrl: '../dialog-table-data.component.html',
 })
 export class UsersDialogComponent extends DialogTableDataComponent<User> {
-  constructor(
+  public constructor(
     protected dialogRef: MatDialogRef<UsersDialogComponent>,
     private usersListTableDataSource: UsersDialogTableDataSource,
     @Inject(MAT_DIALOG_DATA) data: any) {
     super(data, dialogRef, usersListTableDataSource);
     // Default title
-    if (this.title === '') {
+    if (Utils.isEmptyString(this.title)) {
       this.title = 'users.select_users';
     }
-    this.usersListTableDataSource.destroyDatasource();
+    this.usersListTableDataSource.destroyDataSource();
   }
 
   public getSelectedItems(selectedRows: User[]): KeyValue[] {
     const items: KeyValue[] = [];
-    if (selectedRows && selectedRows.length > 0) {
+    if (!Utils.isEmptyArray(selectedRows)) {
       selectedRows.forEach((row) => {
         items.push({ key: row.id, value: Utils.buildUserFullName(row), objectRef: row });
       });

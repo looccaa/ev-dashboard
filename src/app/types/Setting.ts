@@ -1,29 +1,50 @@
-import { Data } from './Table';
+import CreatedUpdatedProps from './CreatedUpdatedProps';
+import { TableData } from './Table';
 import TenantComponents from './TenantComponents';
 
-export interface Setting extends Data {
-  id: string;
-  identifier: TenantComponents;
-  sensitiveData: string[];
+export enum TechnicalSettings {
+  USER = 'user',
+  CRYPTO = 'crypto'
+}
+export interface Setting extends TableData, CreatedUpdatedProps {
+  identifier: TenantComponents | TechnicalSettings;
+  sensitiveData?: string[];
   category?: 'business' | 'technical';
-  content: SettingContent;
+}
+export interface SettingDB extends CreatedUpdatedProps, Setting {
+  content: SettingDBContent;
 }
 
-export interface SettingContent {
-  type: CryptoSettingsType | RoamingSettingsType | AnalyticsSettingsType | RefundSettingsType | PricingSettingsType | BillingSettingsType | SmartChargingSettingsType | AssetSettingsType;
+type SettingsType = CryptoSettingsType
+| RoamingSettingsType
+| AnalyticsSettingsType
+| RefundSettingsType
+| PricingSettingsType
+| BillingSettingsType
+| SmartChargingSettingsType
+| AssetSettingsType
+| CarConnectorSettingsType
+| UserSettingsType;
+
+export interface SettingDBContent {
+  type: SettingsType;
   ocpi?: OcpiSetting;
+  oicp?: OicpSetting;
   simple?: SimplePricingSetting;
   convergentCharging?: ConvergentChargingPricingSetting;
+  billing?: BillingSetting;
   stripe?: StripeBillingSetting;
   sac?: SacAnalyticsSetting;
   links?: SettingLink[];
   concur?: ConcurRefundSetting;
   sapSmartCharging?: SapSmartChargingSetting;
   asset?: AssetSetting;
+  carConnector?: CarConnectorSetting;
   crypto?: CryptoSetting;
+  user?: UserSetting;
 }
 
-export interface SettingLink extends Data {
+export interface SettingLink extends TableData {
   id: string; // 'number' is wrong! See table-data-source.enrichData() which does not digest 'id' field of type 'number'
   name: string;
   description: string;
@@ -43,8 +64,7 @@ export interface PricingSettings extends Setting {
   convergentCharging: ConvergentChargingPricingSetting;
 }
 
-export interface PricingSetting {
-}
+export interface PricingSetting {}
 
 export interface SimplePricingSetting extends PricingSetting {
   price: number;
@@ -59,13 +79,15 @@ export interface ConvergentChargingPricingSetting extends PricingSetting {
 }
 
 export enum RoamingSettingsType {
-  GIREVE = 'gireve',
+  OCPI = 'ocpi',
+  OICP = 'oicp',
 }
 
 export interface RoamingSettings extends Setting {
-  identifier: TenantComponents.OCPI;
+  identifier: TenantComponents.OCPI | TenantComponents.OICP;
   type: RoamingSettingsType;
-  ocpi: OcpiSetting;
+  ocpi?: OcpiSetting;
+  oicp?: OicpSetting;
 }
 
 export interface OcpiSetting {
@@ -80,7 +102,7 @@ export interface OcpiSetting {
       type: string;
       width: string;
       height: string;
-    }
+    };
   };
   cpo: {
     countryCode: string;
@@ -90,6 +112,31 @@ export interface OcpiSetting {
     countryCode: string;
     partyID: string;
   };
+}
+
+export interface OicpSetting {
+  currency: string;
+  businessDetails: {
+    name: string;
+    website: string;
+    logo: {
+      url: string;
+      thumbnail: string;
+      category: string;
+      type: string;
+      width: string;
+      height: string;
+    };
+  };
+  cpo: OicpIdentifier;
+  emsp: OicpIdentifier;
+}
+
+export interface OicpIdentifier {
+  countryCode: string;
+  partyID: string;
+  key?: string;
+  cert?: string;
 }
 
 export enum AnalyticsSettingsType {
@@ -149,30 +196,29 @@ export interface ConcurRefundSetting {
   reportName: string;
 }
 
-export enum BillingSettingsType {
-  STRIPE = 'stripe',
-}
-
 export interface BillingSettings extends Setting {
   identifier: TenantComponents.BILLING;
   type: BillingSettingsType;
-  stripe: StripeBillingSetting;
+  billing: BillingSetting;
+  stripe?: StripeBillingSetting;
 }
 
 export interface BillingSetting {
-  lastSynchronizedOn?: Date;
+  isTransactionBillingActivated: boolean;
+  immediateBillingAllowed: boolean;
+  periodicBillingAllowed: boolean;
+  taxID: string;
+  usersLastSynchronizedOn?: Date;
 }
 
-export interface StripeBillingSetting extends BillingSetting {
+export interface StripeBillingSetting {
   url: string;
   secretKey: string;
   publicKey: string;
-  noCardAllowed: boolean;
-  immediateBillingAllowed: boolean;
-  periodicBillingAllowed: boolean;
-  advanceBillingAllowed: boolean;
-  currency: string;
-  taxID: string;
+}
+
+export enum BillingSettingsType {
+  STRIPE = 'stripe',
 }
 
 export enum AssetSettingsType {
@@ -189,20 +235,25 @@ export interface AssetSetting {
   connections: AssetConnectionSetting[];
 }
 
-export interface AssetConnectionSetting extends Data {
+export interface AssetConnectionSetting extends TableData {
   id: string;
   name: string;
   description: string;
   url: string;
   type: AssetConnectionType;
+  refreshIntervalMins?: number;
   schneiderConnection?: AssetSchneiderConnectionType;
   greencomConnection?: AssetGreencomConnectionType;
+  iothinkConnection?: AssetIothinkConnectionType;
+  witConnection?: AssetWitConnectionType;
 }
 
 export enum AssetConnectionType {
   NONE = '',
   SCHNEIDER = 'schneider',
-  GREENCOM = 'greencom'
+  GREENCOM = 'greencom',
+  IOTHINK = 'iothink',
+  WIT = 'wit',
 }
 
 export interface AssetUserPasswordConnectionType {
@@ -210,21 +261,65 @@ export interface AssetUserPasswordConnectionType {
   password: string;
 }
 
-// tslint:disable-next-line: no-empty-interface
-export interface AssetSchneiderConnectionType extends AssetUserPasswordConnectionType {
+export type AssetSchneiderConnectionType = AssetUserPasswordConnectionType;
+
+export type AssetIothinkConnectionType = AssetUserPasswordConnectionType;
+
+export interface AssetGreencomConnectionType {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface AssetWitConnectionType extends AssetUserPasswordConnectionType  {
+  clientId: string;
+  clientSecret: string;
+  authenticationUrl: string;
+}
+
+export enum CarConnectorSettingsType {
+  CAR_CONNECTOR = 'carConnector',
+}
+
+export interface CarConnectorSettings extends Setting {
+  identifier: TenantComponents.CAR_CONNECTOR;
+  type: CarConnectorSettingsType;
+  carConnector?: CarConnectorSetting;
+}
+
+export interface CarConnectorSetting {
+  connections: CarConnectorConnectionSetting[];
+}
+
+export interface CarConnectorConnectionSetting extends TableData {
+  id: string;
+  name: string;
+  description: string;
+  type: CarConnectorConnectionType;
+  mercedesConnection?: CarConnectorMercedesConnectionType;
+}
+
+export enum CarConnectorConnectionType {
+  NONE = '',
+  MERCEDES = 'mercedes',
+}
+
+export interface CarConnectorMercedesConnectionType {
+  authenticationUrl: string;
+  apiUrl: string;
+  clientId: string;
+  clientSecret: string;
 }
 
 export enum CryptoSettingsType {
   CRYPTO = 'crypto',
 }
 
-export interface KeySettings extends Setting {
-  identifier: TenantComponents.CRYPTO;
+export interface CryptoSettings extends Setting {
+  identifier: TechnicalSettings.CRYPTO;
   type: CryptoSettingsType;
   crypto?: CryptoSetting;
 }
-
-export interface KeyCryptoSetting {
+export interface CryptoKeyProperties {
   blockCypher: string;
   blockSize: number;
   operationMode: string;
@@ -232,11 +327,22 @@ export interface KeyCryptoSetting {
 
 export interface CryptoSetting {
   key: string;
-  keyProperties: KeyCryptoSetting;
+  keyProperties: CryptoKeyProperties;
   formerKey?: string;
-  formerKeyProperties?: KeyCryptoSetting;
+  formerKeyProperties?: CryptoKeyProperties;
+  migrationToBeDone?: boolean;
 }
-export interface AssetGreencomConnectionType {
-  clientId: string;
-  clientSecret: string;
+
+export enum UserSettingsType {
+  USER = 'user',
+}
+
+export interface UserSettings extends Setting {
+  identifier: TechnicalSettings.USER;
+  type: UserSettingsType;
+  user?: UserSetting;
+}
+
+export interface UserSetting {
+  autoActivateAccountAfterValidation: boolean;
 }

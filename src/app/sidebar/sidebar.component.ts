@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 
+import { version } from '../../../package.json';
 import { RouteGuardService } from '../guard/route-guard';
 import { AuthorizationService } from '../services/authorization.service';
 import { CentralServerNotificationService } from '../services/central-server-notification.service';
@@ -19,6 +20,7 @@ declare const $: any;
   templateUrl: 'sidebar.component.html',
 })
 export class SidebarComponent implements OnInit, OnDestroy {
+  public version: string = version;
   public mobileMenuVisible: any = 0;
   public menuItems!: any[];
   public loggedUser!: UserToken;
@@ -34,7 +36,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private userRefreshSubscription!: Subscription;
   private tenantRefreshSubscription!: Subscription;
 
-  constructor(
+  public constructor(
     private configService: ConfigService,
     private router: Router,
     private activatedRoute: ActivatedRoute,
@@ -70,6 +72,50 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   public ngOnDestroy() {
     this.destroyRefresh();
+  }
+
+  public isMobileMenu() {
+    return false;
+  }
+
+  public updatePS(): void {
+    if (window.matchMedia('(min-width: 960px)').matches && !this.isMac()) {
+      const elemSidebar = document.querySelector('.sidebar .sidebar-wrapper') ;
+    }
+  }
+
+  public isMac(): boolean {
+    let bool = false;
+    if (navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.platform.toUpperCase().indexOf('IPAD') >= 0) {
+      bool = true;
+    }
+    return bool;
+  }
+
+  public toggleSidebar() {
+    const body = document.getElementsByTagName('body')[0];
+    if (this.misc.sidebar_mini_active === true) {
+      body.classList.remove('sidebar-mini');
+      this.misc.sidebar_mini_active = false;
+    } else {
+      body.classList.add('sidebar-mini');
+      this.misc.sidebar_mini_active = true;
+    }
+  }
+
+  public logout() {
+    // Logoff
+    this.centralServerService.logout().subscribe(() => {
+      // Clear
+      this.centralServerService.logoutSucceeded();
+      // Redirect to login page with the return url
+      this.router.navigate(['/auth/login']);
+    }, (error) => {
+      // Clear
+      this.centralServerService.logoutSucceeded();
+      // Redirect to login page with the return url
+      this.router.navigate(['/auth/login']);
+    });
   }
 
   private createRefresh() {
@@ -149,49 +195,5 @@ export class SidebarComponent implements OnInit, OnDestroy {
     } else {
       this.logo = Constants.TENANT_DEFAULT_LOGO;
     }
-  }
-
-  public isMobileMenu() {
-    return false;
-  }
-
-  public updatePS(): void {
-    if (window.matchMedia('(min-width: 960px)').matches && !this.isMac()) {
-      const elemSidebar = document.querySelector('.sidebar .sidebar-wrapper') ;
-    }
-  }
-
-  public isMac(): boolean {
-    let bool = false;
-    if (navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.platform.toUpperCase().indexOf('IPAD') >= 0) {
-      bool = true;
-    }
-    return bool;
-  }
-
-  public toggleSidebar() {
-    const body = document.getElementsByTagName('body')[0];
-    if (this.misc.sidebar_mini_active === true) {
-      body.classList.remove('sidebar-mini');
-      this.misc.sidebar_mini_active = false;
-    } else {
-      body.classList.add('sidebar-mini');
-      this.misc.sidebar_mini_active = true;
-    }
-  }
-
-  public logout() {
-    // Logoff
-    this.centralServerService.logout().subscribe(() => {
-      // Clear
-      this.centralServerService.logoutSucceeded();
-      // Redirect to login page with the return url
-      this.router.navigate(['/auth/login']);
-    }, (error) => {
-      // Clear
-      this.centralServerService.logoutSucceeded();
-      // Redirect to login page with the return url
-      this.router.navigate(['/auth/login']);
-    });
   }
 }

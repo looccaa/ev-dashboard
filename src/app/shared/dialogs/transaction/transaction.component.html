@@ -5,7 +5,7 @@
       <div class="card-header card-header-tabs card-header-primary">
         <div class="nav-tabs-navigation">
           <h4 class="nav-tabs-title text-uppercase">{{transaction.chargeBoxID}} -
-            {{transaction.connectorId | appConnectorId}} - {{transaction.id}} </h4>
+            {{transaction.connectorId | appConnectorId}} - {{transaction.id}} {{transaction?.stop?.reason ? '- ' + transaction?.stop?.reason : ''}} </h4>
           <ul class="nav nav-tabs" data-tabs="tabs">
             <span class="toolbar-spacer"></span>
             <button mat-icon-button mat-dialog-close>
@@ -28,7 +28,7 @@
             <div *ngIf="transaction.stop" class="d-flex flex-column mb-3 align-items-center " appTooltip
               data-toogle="tooltip" title="{{'transactions.dialog.session.tooltips.amount' | translate}}">
               <mat-icon>money</mat-icon>
-              <div class="first-text">{{transaction.stop.priceUnit ? (transaction.stop.price | appCurrency:transaction.stop.priceUnit) : '--'}}</div>
+              <div class="first-text">{{transaction.stop.priceUnit ? (transaction.stop.roundedPrice | appCurrency:transaction.stop.priceUnit) : '--'}}</div>
             </div>
             <div *ngIf="!transaction.stop" class="d-flex flex-column mb-3 align-items-center" appTooltip
               data-toogle="tooltip" title="{{'transactions.dialog.session.tooltips.current_consumption' | translate}}">
@@ -64,7 +64,7 @@
               [ngClass]="transaction && (transaction.stop ? transaction.stop.inactivityStatus : transaction.currentInactivityStatus) | appColorByStatus"
               title="{{'transactions.dialog.session.tooltips.inactivity' | translate}}">
               <mat-icon >timer_off</mat-icon>
-              <div class="first-text">{{totalInactivitySecs | appDuration}} {{ percentOfInactivity }}</div>
+              <div class="first-text">{{transaction | appInactivity}}</div>
             </div>
           </div>
           <div *ngIf="isCarComponentActive && canDisplayCar" class="d-flex flex-column align-items-center">

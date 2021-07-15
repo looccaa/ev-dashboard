@@ -1,19 +1,20 @@
 import { Component, ElementRef, OnInit } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
-import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
+
+import { version } from '../../../../package.json';
 
 @Component({
   selector: 'app-layout',
   templateUrl: './auth-layout.component.html',
 })
 export class AuthLayoutComponent implements OnInit {
+  public version: string = version;
   public mobileMenuVisible: any = 0;
   private toggleButton: any;
   private sidebarVisible: boolean;
-  private _router!: Subscription;
 
-  constructor(private router: Router, private element: ElementRef) {
+  public constructor(private router: Router, private element: ElementRef) {
     this.sidebarVisible = false;
   }
 
@@ -21,7 +22,7 @@ export class AuthLayoutComponent implements OnInit {
     const navbar: HTMLElement = this.element.nativeElement;
 
     this.toggleButton = navbar.getElementsByClassName('navbar-toggler')[0];
-    this._router = this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => {
+    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => {
       this.sidebarClose();
     });
   }

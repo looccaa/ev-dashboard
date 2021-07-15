@@ -14,7 +14,8 @@ import { GeoMapDialogComponent } from '../dialogs/geomap/geomap-dialog.component
 })
 export class AddressComponent implements OnInit, OnChanges {
   @Input() public formGroup!: FormGroup;
-  @Input() public hideGeoLocation = false;
+  @Input() public hideGeolocation = false;
+  @Input() public onlyReadGeolocation = false;
   @Input() public address!: Address;
   @Input() public componentName!: string;
   @Input() public itemComponentName!: string;
@@ -30,10 +31,10 @@ export class AddressComponent implements OnInit, OnChanges {
   public longitude!: AbstractControl;
   public latitude!: AbstractControl;
 
-  constructor(
+  // eslint-disable-next-line no-useless-constructor
+  public constructor(
     private translateService: TranslateService,
-    private dialog: MatDialog) {
-  }
+    private dialog: MatDialog) {}
 
   public ngOnInit() {
     // Set Address form group
@@ -90,31 +91,31 @@ export class AddressComponent implements OnInit, OnChanges {
       return;
     }
     if (this.address.address1) {
-      this.addressFormGroup.controls.address1.setValue(this.address.address1);
+      this.addressFormGroup?.controls.address1.setValue(this.address.address1);
     }
     if (this.address.address2) {
-      this.addressFormGroup.controls.address2.setValue(this.address.address2);
+      this.addressFormGroup?.controls.address2.setValue(this.address.address2);
     }
     if (this.address.postalCode) {
-      this.addressFormGroup.controls.postalCode.setValue(this.address.postalCode);
+      this.addressFormGroup?.controls.postalCode.setValue(this.address.postalCode);
     }
     if (this.address.city) {
-      this.addressFormGroup.controls.city.setValue(this.address.city);
+      this.addressFormGroup?.controls.city.setValue(this.address.city);
     }
     if (this.address.department) {
-      this.addressFormGroup.controls.department.setValue(this.address.department);
+      this.addressFormGroup?.controls.department.setValue(this.address.department);
     }
     if (this.address.region) {
-      this.addressFormGroup.controls.region.setValue(this.address.region);
+      this.addressFormGroup?.controls.region.setValue(this.address.region);
     }
     if (this.address.country) {
-      this.addressFormGroup.controls.country.setValue(this.address.country);
+      this.addressFormGroup?.controls.country.setValue(this.address.country);
     }
     if (this.address.coordinates && this.address.coordinates.length === 2) {
-      this.coordinates.at(0).setValue(this.address.coordinates[0]);
-      this.coordinates.at(1).setValue(this.address.coordinates[1]);
-      this.longitude = this.coordinates.at(0);
-      this.latitude = this.coordinates.at(1);
+      this.coordinates?.at(0).setValue(this.address.coordinates[0]);
+      this.coordinates?.at(1).setValue(this.address.coordinates[1]);
+      this.longitude = this.coordinates?.at(0);
+      this.latitude = this.coordinates?.at(1);
     }
   }
 
@@ -182,7 +183,7 @@ export class AddressComponent implements OnInit, OnChanges {
     dialogConfig.minWidth = '70vw';
     dialogConfig.disableClose = false;
     dialogConfig.panelClass = 'transparent-dialog-container';
-    // Get latitud/longitude from form
+    // Get latitude/longitude from form
     let latitude = this.latitude.value;
     let longitude = this.longitude.value;
     // If one is not available try to get from SiteArea and then from Site
@@ -206,8 +207,9 @@ export class AddressComponent implements OnInit, OnChanges {
       latitude,
       longitude,
       label: this.itemComponentName ? this.itemComponentName : '',
+      displayOnly: this.onlyReadGeolocation ?? false
     };
-    // disable outside click close
+    // Disable outside click close
     dialogConfig.disableClose = true;
     // Open
     this.dialog.open(GeoMapDialogComponent, dialogConfig)

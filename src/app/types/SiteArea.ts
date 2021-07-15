@@ -1,17 +1,18 @@
 import { Address } from './Address';
-import { ChargingStation } from './ChargingStation';
+import { SiteAreaAuthorizationActions } from './Authorization';
+import { ChargingStation, Voltage } from './ChargingStation';
 import Consumption from './Consumption';
 import { Site } from './Site';
-import { Data } from './Table';
+import { TableData } from './Table';
 
-export interface SiteArea extends Data {
+export interface SiteArea extends TableData, SiteAreaAuthorizationActions {
   id: string;
   name: string;
   image: string;
   address: Address;
   maximumPower: number;
   numberOfPhases: number;
-  voltage: number;
+  voltage: Voltage;
   accessControl: boolean;
   smartCharging: boolean;
   siteID: string;

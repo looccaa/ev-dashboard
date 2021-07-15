@@ -1,10 +1,11 @@
 import { KeyValue } from './GlobalType';
+import { Site } from './Site';
 import { SiteArea } from './SiteArea';
-import { Data } from './Table';
+import { TableData } from './Table';
 import { InactivityStatus } from './Transaction';
 import { User } from './User';
 
-export interface ChargingStation extends Data {
+export interface ChargingStation extends TableData {
   id: string;
   templateHash?: string;
   templateHashTechnical?: string;
@@ -29,6 +30,7 @@ export interface ChargingStation extends Data {
   deleted: boolean;
   inactive: boolean;
   forceInactive: boolean;
+  manualConfiguration?: boolean;
   lastReboot: Date;
   chargingStationURL: string;
   maximumPower: number;
@@ -41,6 +43,7 @@ export interface ChargingStation extends Data {
   connectors: Connector[];
   currentIPAddress?: string;
   siteArea?: SiteArea;
+  site?: Site;
   capabilities?: ChargingStationCapabilities;
   ocppStandardParameters?: KeyValue[];
   ocppVendorParameters?: KeyValue[];
@@ -91,7 +94,7 @@ export enum ChargingRateUnitType {
   AMPERE = 'A',
 }
 
-export interface OcppParameter extends Data {
+export interface OcppParameter extends TableData {
   key: string;
   value?: string;
   readonly: boolean;
@@ -114,7 +117,7 @@ export interface ChargePoint {
   ampCurrentLimit?: number;
 }
 
-export interface Connector extends Data {
+export interface Connector extends TableData {
   connectorId: number;
   currentInstantWatts: number;
   currentStateOfCharge?: number;
@@ -124,6 +127,8 @@ export interface Connector extends Data {
   currentTransactionID?: number;
   currentTransactionDate?: Date;
   currentTagID?: string;
+  currentUserID?: string;
+  user?: User;
   status: ChargePointStatus;
   errorCode?: string;
   info?: string;
@@ -135,8 +140,6 @@ export interface Connector extends Data {
   amperageLimit?: number;
   statusLastChangedOn?: Date;
   numberOfConnectedPhase?: number;
-  userID?: string;
-  user?: User;
   currentType?: CurrentType;
   chargePointID?: number;
   hasDetails: boolean;
@@ -255,5 +258,5 @@ export enum OCPPAvailabilityType {
 }
 
 export enum StaticLimitAmps {
-  MIN_LIMIT_PER_PHASE = 13,
+  MIN_LIMIT_PER_PHASE = 6,
 }

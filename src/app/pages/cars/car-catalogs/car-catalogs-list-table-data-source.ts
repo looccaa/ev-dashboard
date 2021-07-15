@@ -4,7 +4,6 @@ import { Router } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
 import { Observable } from 'rxjs';
 
-import { AuthorizationService } from '../../../services/authorization.service';
 import { CentralServerNotificationService } from '../../../services/central-server-notification.service';
 import { CentralServerService } from '../../../services/central-server.service';
 import { ConfigService } from '../../../services/config.service';
@@ -13,7 +12,7 @@ import { MessageService } from '../../../services/message.service';
 import { SpinnerService } from '../../../services/spinner.service';
 import { AppDecimalPipe } from '../../../shared/formatters/app-decimal-pipe';
 import { AppUnitPipe } from '../../../shared/formatters/app-unit.pipe';
-import { TableSyncCarCatalogsAction } from '../../../shared/table/actions/cars/table-sync-car-catalogs-action';
+import { TableSyncCarCatalogsAction, TableSyncCarCatalogsActionDef } from '../../../shared/table/actions/cars/table-sync-car-catalogs-action';
 import { TableViewCarCatalogAction, TableViewCarCatalogActionDef } from '../../../shared/table/actions/cars/table-view-car-catalog-action';
 import { TableAutoRefreshAction } from '../../../shared/table/actions/table-auto-refresh-action';
 import { TableRefreshAction } from '../../../shared/table/actions/table-refresh-action';
@@ -23,17 +22,16 @@ import { CarButtonAction, CarCatalog } from '../../../types/Car';
 import ChangeNotification from '../../../types/ChangeNotification';
 import { DataResult } from '../../../types/DataResult';
 import { TableActionDef, TableColumnDef, TableDef, TableFilterDef } from '../../../types/Table';
-import { Constants } from '../../../utils/Constants';
 import { Utils } from '../../../utils/Utils';
 import { CarCatalogDialogComponent } from '../car-catalog/car-catalog.dialog.component';
 import { CarCatalogImageFormatterCellComponent } from '../cell-components/car-catalog-image-formatter-cell.component';
 
 @Injectable()
 export class CarCatalogsListTableDataSource extends TableDataSource<CarCatalog> {
-  public isSuperAdmin: boolean;
   private openAction = new TableViewCarCatalogAction().getActionDef();
   private tableSyncCarCatalogsAction = new TableSyncCarCatalogsAction().getActionDef();
-  constructor(
+
+  public constructor(
     public spinnerService: SpinnerService,
     public translateService: TranslateService,
     private dialogService: DialogService,
@@ -45,12 +43,11 @@ export class CarCatalogsListTableDataSource extends TableDataSource<CarCatalog> 
     private config: ConfigService,
     private dialog: MatDialog,
     private decimalPipe: AppDecimalPipe,
-    private authorizationService: AuthorizationService,
   ) {
     super(spinnerService, translateService);
-    this.isSuperAdmin = this.authorizationService.isSuperAdmin();
     // Init
     this.initDataSource();
+    this.tableSyncCarCatalogsAction.visible = false;
   }
 
   public getDataChangeSubject(): Observable<ChangeNotification> {
@@ -66,6 +63,7 @@ export class CarCatalogsListTableDataSource extends TableDataSource<CarCatalog> 
       // Get cars
       this.centralServerService.getCarCatalogs(this.buildFilterValues(), this.getPaging(), this.getSorting()).subscribe((carCatalogs) => {
         observer.next(carCatalogs);
+        this.tableSyncCarCatalogsAction.visible = carCatalogs.canSync;
         observer.complete();
       }, (error) => {
         // Show error
@@ -91,13 +89,10 @@ export class CarCatalogsListTableDataSource extends TableDataSource<CarCatalog> 
 
   public buildTableActionsDef(): TableActionDef[] {
     const tableActionsDef = super.buildTableActionsDef();
-    if (this.isSuperAdmin) {
-      return [
-        this.tableSyncCarCatalogsAction,
-        ...tableActionsDef,
-      ];
-    }
-    return tableActionsDef;
+    return [
+      this.tableSyncCarCatalogsAction,
+      ...tableActionsDef,
+    ];
   }
 
   public buildTableColumnDefs(): TableColumnDef[] {
@@ -241,8 +236,8 @@ export class CarCatalogsListTableDataSource extends TableDataSource<CarCatalog> 
     switch (actionDef.id) {
       case CarButtonAction.VIEW_CAR_CATALOG:
         if (actionDef.action) {
-          (actionDef as TableViewCarCatalogActionDef).action(CarCatalogDialogComponent, carCatalog, this.dialog,
-            this.refreshData.bind(this));
+          (actionDef as TableViewCarCatalogActionDef).action(CarCatalogDialogComponent, this.dialog,
+            { dialogData: carCatalog }, this.refreshData.bind(this));
         }
         break;
     }
@@ -252,22 +247,21 @@ export class CarCatalogsListTableDataSource extends TableDataSource<CarCatalog> 
     // Action
     switch (actionDef.id) {
       case CarButtonAction.SYNCHRONIZE:
-        if (this.tableSyncCarCatalogsAction.action) {
-          this.tableSyncCarCatalogsAction.action(
-            this.dialogService,
-            this.translateService,
-            this.messageService,
-            this.centralServerService,
-            this.spinnerService,
-            this.router,
+        if (actionDef.action) {
+          (actionDef as TableSyncCarCatalogsActionDef).action(
+            this.dialogService, this.translateService, this.messageService,
+            this.centralServerService, this.spinnerService, this.router, this.refreshData.bind(this)
           );
         }
         break;
     }
   }
 
-  public buildTableRowActions(): TableActionDef[] {
-    return [this.openAction];
+  public buildTableDynamicRowActions(carCatalog: CarCatalog): TableActionDef[] {
+    if (carCatalog.canRead) {
+      return [this.openAction];
+    }
+    return [];
   }
 
   public buildTableActionsRightDef(): TableActionDef[] {

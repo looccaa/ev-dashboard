@@ -28,6 +28,8 @@ export class CentralServerNotificationService {
   private subjectSetting = new Subject<SingleChangeNotification>();
   private subjectOcpiEndpoints = new Subject<ChangeNotification>();
   private subjectOcpiEndpoint = new Subject<SingleChangeNotification>();
+  private subjectOicpEndpoints = new Subject<ChangeNotification>();
+  private subjectOicpEndpoint = new Subject<SingleChangeNotification>();
   private subjectAssets = new Subject<ChangeNotification>();
   private subjectAsset = new Subject<SingleChangeNotification>();
   private subjectAnalyticsLinks = new Subject<ChangeNotification>();
@@ -39,15 +41,13 @@ export class CentralServerNotificationService {
   private subjectChargingProfile = new Subject<SingleChangeNotification>();
   private subjectCars = new Subject<ChangeNotification>();
   private subjectCar = new Subject<SingleChangeNotification>();
-  private subjectUsersCars = new Subject<ChangeNotification>();
-  private subjectUserCar = new Subject<SingleChangeNotification>();
   private subjectCarCatalogs = new Subject<ChangeNotification>();
   private subjectCarCatalog = new Subject<SingleChangeNotification>();
   private subjectTags = new Subject<ChangeNotification>();
   private subjectTag = new Subject<SingleChangeNotification>();
   private socketIOClient: SocketIOClient;
 
-  public setcentralRestServerServiceURL(url: string) {
+  public setCentralRestServerServiceURL(url: string) {
     this.centralRestServerServiceURL = url;
   }
 
@@ -127,6 +127,14 @@ export class CentralServerNotificationService {
     return this.subjectOcpiEndpoint.asObservable();
   }
 
+  public getSubjectOicpEndpoints(): Observable<ChangeNotification> {
+    return this.subjectOicpEndpoints.asObservable();
+  }
+
+  public getSubjectOicpEndpoint(): Observable<SingleChangeNotification> {
+    return this.subjectOicpEndpoint.asObservable();
+  }
+
   public getSubjectAnalyticsLinks(): Observable<ChangeNotification> {
     return this.subjectAnalyticsLinks.asObservable();
   }
@@ -171,14 +179,6 @@ export class CentralServerNotificationService {
     return this.subjectCar.asObservable();
   }
 
-  public getSubjectUsersCars(): Observable<ChangeNotification> {
-    return this.subjectUsersCars.asObservable();
-  }
-
-  public getSubjectUserCar(): Observable<SingleChangeNotification> {
-    return this.subjectUserCar.asObservable();
-  }
-
   public getSubjectCarCatalogs(): Observable<ChangeNotification> {
     return this.subjectCarCatalogs.asObservable();
   }
@@ -193,6 +193,27 @@ export class CentralServerNotificationService {
 
   public getSubjectTag(): Observable<SingleChangeNotification> {
     return this.subjectTag.asObservable();
+  }
+
+  public initSocketIO(token: string) {
+    // Check
+    if (!this.socketIOClient) {
+      // Init Socket IO singleton
+      this.socketIOClient = SocketIOClient.getInstance();
+    }
+    // Connect Socket IO
+    this.socketIOClient.connectAuthenticated(this.centralRestServerServiceURL, token);
+    this.monitorChangeNotification();
+  }
+
+  public resetSocketIO() {
+    // Check
+    if (this.socketIOClient) {
+      // Close
+      this.socketIOClient.disconnect();
+    }
+    // Clear
+    this.socketIOClient = null;
   }
 
   private monitorChangeNotification() {
@@ -219,6 +240,14 @@ export class CentralServerNotificationService {
     // Monitor OCPI Endpoint
     this.socketIOClient.socket.on(Entity.OCPI_ENDPOINT, (changeNotification: SingleChangeNotification) => {
       this.subjectOcpiEndpoint.next(changeNotification);
+    });
+    // Monitor OICP Endpoints
+    this.socketIOClient.socket.on(Entity.OICP_ENDPOINTS, (changeNotification: ChangeNotification) => {
+      this.subjectOicpEndpoints.next(changeNotification);
+    });
+    // Monitor OICP Endpoint
+    this.socketIOClient.socket.on(Entity.OICP_ENDPOINT, (changeNotification: SingleChangeNotification) => {
+      this.subjectOicpEndpoint.next(changeNotification);
     });
     // Monitor Sites
     this.socketIOClient.socket.on(Entity.SITES, (changeNotification: ChangeNotification) => {
@@ -321,26 +350,5 @@ export class CentralServerNotificationService {
     this.socketIOClient.socket.on(Entity.TAG, (changeNotification: SingleChangeNotification) => {
       this.subjectTag.next(changeNotification);
     });
-  }
-
-  public initSocketIO(token: string) {
-    // Check
-    if (!this.socketIOClient) {
-      // Init Socket IO singleton
-      this.socketIOClient = SocketIOClient.getInstance();
-    }
-    // Connect Socket IO
-    this.socketIOClient.connectAuthenticated(this.centralRestServerServiceURL, token);
-    this.monitorChangeNotification();
-  }
-
-  public resetSocketIO() {
-    // Check
-    if (this.socketIOClient) {
-      // Close
-      this.socketIOClient.disconnect();
-    }
-    // Clear
-    this.socketIOClient = null;
   }
 }

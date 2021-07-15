@@ -4,6 +4,8 @@ import { TranslateService } from '@ngx-translate/core';
 import * as moment from 'moment';
 import { Observable } from 'rxjs';
 import { ConnectorTableFilter } from 'shared/table/filters/connector-table-filter';
+import { IssuerFilter } from 'shared/table/filters/issuer-filter';
+import { SiteTableFilter } from 'shared/table/filters/site-table-filter';
 
 import { AuthorizationService } from '../../../services/authorization.service';
 import { CentralServerNotificationService } from '../../../services/central-server-notification.service';
@@ -53,7 +55,7 @@ export class TransactionsRefundTableDataSource extends TableDataSource<Transacti
   private isAdmin: boolean;
   private tableSyncRefundAction = new TableSyncRefundTransactionsAction().getActionDef();
 
-  constructor(
+  public constructor(
     public spinnerService: SpinnerService,
     public translateService: TranslateService,
     private messageService: MessageService,
@@ -73,8 +75,8 @@ export class TransactionsRefundTableDataSource extends TableDataSource<Transacti
     super(spinnerService, translateService);
     this.refundTransactionEnabled = this.authorizationService.canRefundTransaction();
     this.isAdmin = this.authorizationService.isAdmin();
-    // Check
-    this.checkConcurConnection();
+    // Load settings
+    this.loadRefundSettings();
     // Init
     this.initDataSource();
     // Add statistics to query
@@ -124,16 +126,16 @@ export class TransactionsRefundTableDataSource extends TableDataSource<Transacti
       // Stats?
       if (data.stats) {
         // Total Consumption
-        // tslint:disable-next-line:max-line-length
+        // eslint-disable-next-line max-len
         let stats = `| ${this.translateService.instant('transactions.consumption')}: ${this.appUnitPipe.transform(data.stats.totalConsumptionWattHours, 'Wh', 'kWh', true, 1, 0, 0)}`;
         // Refund transactions
-        // tslint:disable-next-line:max-line-length
+        // eslint-disable-next-line max-len
         stats += ` | ${this.translateService.instant('transactions.refund_transactions')}: ${data.stats.countRefundTransactions} (${this.appCurrencyPipe.transform(data.stats.totalPriceRefund, data.stats.currency)})`;
         // Pending transactions
-        // tslint:disable-next-line:max-line-length
+        // eslint-disable-next-line max-len
         stats += ` | ${this.translateService.instant('transactions.pending_transactions')}: ${data.stats.countPendingTransactions} (${this.appCurrencyPipe.transform(data.stats.totalPricePending, data.stats.currency)})`;
         // Number of reimbursed reports submitted
-        // tslint:disable-next-line:max-line-length
+        // eslint-disable-next-line max-len
         stats += ` | ${this.translateService.instant('transactions.count_refunded_reports')}: ${data.stats.countRefundedReports}`;
         return stats;
       }
@@ -248,20 +250,37 @@ export class TransactionsRefundTableDataSource extends TableDataSource<Transacti
   }
 
   public buildTableFiltersDef(): TableFilterDef[] {
+    let userFilter: TableFilterDef;
+    const issuerFilter = new IssuerFilter().getFilterDef();
     const filters: TableFilterDef[] = [
       new StartDateFilter(moment().startOf('y').toDate()).getFilterDef(),
       new EndDateFilter().getFilterDef(),
       new TransactionsRefundStatusFilter().getFilterDef(),
     ];
-    if (this.authorizationService.isAdmin() || this.authorizationService.hasSitesAdminRights()) {
-      if (this.componentService.isActive(TenantComponents.ORGANIZATION)) {
-        filters.push(new ChargingStationTableFilter(this.authorizationService.getSitesAdmin()).getFilterDef());
+    if (this.componentService.isActive(TenantComponents.ORGANIZATION)) {
+      const siteFilter = new SiteTableFilter([issuerFilter]).getFilterDef();
+      const siteAreaFilter = new SiteAreaTableFilter([issuerFilter, siteFilter]).getFilterDef();
+      filters.push(siteFilter);
+      filters.push(siteAreaFilter);
+      if (this.authorizationService.canListChargingStations()) {
+        filters.push(new ChargingStationTableFilter([issuerFilter, siteFilter, siteAreaFilter]).getFilterDef());
         filters.push(new ConnectorTableFilter().getFilterDef());
-        filters.push(new SiteAreaTableFilter().getFilterDef());
-        filters.push(new UserTableFilter(this.authorizationService.getSitesAdmin()).getFilterDef());
-        filters.push(new ReportTableFilter().getFilterDef());
+      }
+      if ((this.authorizationService.canListUsers())) {
+        userFilter = new UserTableFilter([issuerFilter, siteFilter]).getFilterDef();
+        filters.push(userFilter);
+      }
+    } else {
+      if (this.authorizationService.canListChargingStations()) {
+        filters.push(new ChargingStationTableFilter([issuerFilter]).getFilterDef());
+        filters.push(new ConnectorTableFilter().getFilterDef());
+      }
+      if ((this.authorizationService.canListUsers())) {
+        userFilter = new UserTableFilter([issuerFilter]).getFilterDef();
+        filters.push(userFilter);
       }
     }
+    filters.push(new ReportTableFilter().getFilterDef());
     return filters;
   }
 
@@ -306,10 +325,10 @@ export class TransactionsRefundTableDataSource extends TableDataSource<Transacti
         if (!this.refundSetting) {
           this.messageService.showErrorMessage(
             this.translateService.instant('transactions.notification.refund.concur_connection_invalid'));
-        } else if (this.refundSetting && this.refundSetting.content && this.refundSetting.content.concur && actionDef.action) {
-          (actionDef as TableOpenURLActionDef).action(this.refundSetting.content.concur.appUrl ?
-            this.refundSetting.content.concur.appUrl :
-            this.refundSetting.content.concur.apiUrl);
+        } else if (this.refundSetting && this.refundSetting.concur && actionDef.action) {
+          (actionDef as TableOpenURLActionDef).action(this.refundSetting.concur.appUrl ?
+            this.refundSetting.concur.appUrl :
+            this.refundSetting.concur.apiUrl);
         }
         break;
       case TransactionButtonAction.EXPORT_TRANSACTIONS:
@@ -333,11 +352,11 @@ export class TransactionsRefundTableDataSource extends TableDataSource<Transacti
     return this.authorizationService.isSiteOwner(row.siteID) && (!row.refundData || row.refundData.status === 'cancelled');
   }
 
-  private checkConcurConnection() {
-    if (this.authorizationService.canListSettings()) {
-      this.centralServerService.getSettings(TenantComponents.REFUND).subscribe((settingResult) => {
-        if (settingResult && settingResult.result && settingResult.result.length > 0) {
-          this.refundSetting = settingResult.result[0] as RefundSettings;
+  private loadRefundSettings() {
+    if (this.authorizationService.canReadSetting()) {
+      this.componentService.getRefundSettings().subscribe((refundSettings) => {
+        if (refundSettings) {
+          this.refundSetting = refundSettings;
         }
       });
     }

@@ -21,7 +21,7 @@ export class ChargingPlansEditableTableDataSource extends EditableTableDataSourc
   private connectorID = 0;
   private chargerPowers!: ChargingStationPowers;
 
-  constructor(
+  public constructor(
     public spinnerService: SpinnerService,
     public translateService: TranslateService,
     private datePipe: AppDatePipe,
@@ -100,7 +100,7 @@ export class ChargingPlansEditableTableDataSource extends EditableTableDataSourc
   public refreshChargingSchedules() {
     const chargingSchedules = this.getContent();
     this.endDate = new Date(this.startDate);
-    if (chargingSchedules.length > 0) {
+    if (!Utils.isEmptyArray(chargingSchedules)) {
       chargingSchedules[0].startDate = new Date(this.startDate);
       // Recompute charging plan date
       for (let i = 0; i < chargingSchedules.length; i++) {

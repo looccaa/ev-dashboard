@@ -3,7 +3,9 @@ import { AbstractControl, FormArray, FormControl, FormGroup, ValidationErrors, V
 import { Router } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
 import * as moment from 'moment';
+import { Observable } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
+import { ActionResponse } from 'types/DataResult';
 
 import { CentralServerNotificationService } from '../../../../services/central-server-notification.service';
 import { CentralServerService } from '../../../../services/central-server.service';
@@ -67,7 +69,7 @@ export class ChargingPlansComponent implements OnInit, AfterViewInit, OnChanges 
   public isSmartChargingComponentActive = false;
   public autoRefreshEnabled = true;
 
-  constructor(
+  public constructor(
     public scheduleTableDataSource: ChargingPlansTableDataSource,
     public scheduleEditableTableDataSource: ChargingPlansEditableTableDataSource,
     private centralServerNotificationService: CentralServerNotificationService,
@@ -86,15 +88,15 @@ export class ChargingPlansComponent implements OnInit, AfterViewInit, OnChanges 
       // Update Charging Station?
       this.centralServerNotificationService.getSubjectChargingProfile().pipe(debounceTime(
         this.configService.getAdvanced().debounceTimeNotifMillis)).subscribe((singleChangeNotification) => {
-          if (this.chargingProfiles && singleChangeNotification && singleChangeNotification.data) {
-            const chargingProfile = this.chargingProfiles.find(
-              (chargingProfile) => chargingProfile.id === singleChangeNotification.data.id);
+        if (this.chargingProfiles && singleChangeNotification && singleChangeNotification.data) {
+          const chargingProfile = this.chargingProfiles.find(
+            (cp) => cp.id === singleChangeNotification.data.id);
             // Reload?
-            if (chargingProfile) {
-              this.refresh();
-            }
+          if (chargingProfile) {
+            this.refresh();
           }
-        });
+        }
+      });
     }
   }
 
@@ -180,7 +182,7 @@ export class ChargingPlansComponent implements OnInit, AfterViewInit, OnChanges 
   }
 
   public ngOnChanges() {
-    if (this.autoRefreshEnabled) {
+    if (this.autoRefreshEnabled && !this.formGroup.dirty) {
       this.refresh();
     }
   }
@@ -246,7 +248,7 @@ export class ChargingPlansComponent implements OnInit, AfterViewInit, OnChanges 
   public loadChargingProfiles() {
     if (this.chargingStation) {
       this.spinnerService.show();
-      this.centralServerService.getChargingProfiles({ ChargeBoxID: this.chargingStation.id }).subscribe((chargingProfiles) => {
+      this.centralServerService.getChargingProfiles({ ChargingStationID: this.chargingStation.id }).subscribe((chargingProfiles) => {
         this.spinnerService.hide();
         this.formGroup.markAsPristine();
         // Set Profile
@@ -282,6 +284,147 @@ export class ChargingPlansComponent implements OnInit, AfterViewInit, OnChanges 
         Utils.handleHttpError(error, this.router, this.messageService, this.centralServerService, 'general.unexpected_error_backend');
       });
     }
+  }
+
+  public deleteChargingProfile() {
+    // Show yes/no dialog
+    this.dialogService.createAndShowYesNoDialog(
+      this.translateService.instant('chargers.smart_charging.clear_profile_title'),
+      this.translateService.instant('chargers.smart_charging.clear_profile_confirm', { chargeBoxID: this.chargingStation.id }),
+    ).subscribe((result) => {
+      if (result === ButtonType.YES) {
+        // Build charging profile
+        const chargingProfile = this.buildChargingProfile();
+        this.spinnerService.show();
+        this.centralServerService.deleteChargingProfile(chargingProfile.id).subscribe((response) => {
+          this.spinnerService.hide();
+          if (response.status === RestResponse.SUCCESS) {
+            // Remove from array
+            this.chargingProfiles = this.chargingProfiles.filter((exitingChargingProfile) => exitingChargingProfile.id !== chargingProfile.id);
+            this.messageService.showSuccessMessage(this.translateService.instant('chargers.smart_charging.clear_profile_success',
+              { chargeBoxID: this.chargingStation.id }));
+          } else {
+            Utils.handleError(JSON.stringify(response),
+              this.messageService, this.translateService.instant('chargers.smart_charging.clear_profile_error'));
+          }
+        }, (error: any) => {
+          this.spinnerService.hide();
+          if (error.status === HTTPError.CLEAR_CHARGING_PROFILE_NOT_SUCCESSFUL) {
+            Utils.handleHttpError(
+              error, this.router, this.messageService, this.centralServerService,
+              this.translateService.instant('chargers.smart_charging.clear_profile_not_accepted',
+                { chargeBoxID: this.chargingStation.id }));
+          } else {
+            Utils.handleHttpError(
+              error, this.router, this.messageService, this.centralServerService, 'chargers.smart_charging.clear_profile_error');
+          }
+        });
+      }
+    });
+  }
+
+  public saveAndApplyChargingProfile() {
+    // show yes/no dialog
+    this.dialogService.createAndShowYesNoDialog(
+      this.translateService.instant('chargers.smart_charging.power_limit_plan_title'),
+      this.translateService.instant('chargers.smart_charging.power_limit_plan_confirm', { chargeBoxID: this.chargingStation.id }),
+    ).subscribe((result) => {
+      if (result === ButtonType.YES) {
+        // Build charging profile
+        const chargingProfile = this.buildChargingProfile();
+        this.spinnerService.show();
+        let restRequest: (chargingProfile) => Observable<ActionResponse>;
+        if (chargingProfile.id) {
+          // Charging profile already exists : update it
+          restRequest = this.centralServerService.updateChargingProfile.bind(this.centralServerService);
+        } else {
+          // Charging profile doesn't exists : create it
+          restRequest = this.centralServerService.createChargingProfile.bind(this.centralServerService);
+        }
+        restRequest(chargingProfile).subscribe((response) => {
+          this.spinnerService.hide();
+          if (response.status === RestResponse.SUCCESS) {
+            // Push new profile in array
+            const foundChargingProfile = this.chargingProfiles.find((exitingChargingProfile) => exitingChargingProfile.id === chargingProfile.id);
+            if (!foundChargingProfile) {
+              chargingProfile.id = response.id;
+              this.chargingProfilesControl.setValue(chargingProfile);
+              this.chargingProfiles.push(chargingProfile);
+            }
+            this.messageService.showSuccessMessage(
+              this.translateService.instant('chargers.smart_charging.power_limit_plan_success',
+                { chargeBoxID: this.chargingStation.id }));
+          } else {
+            Utils.handleError(JSON.stringify(response),
+              this.messageService, this.translateService.instant('chargers.smart_charging.power_limit_plan_error'));
+          }
+        }, (error) => {
+          this.spinnerService.hide();
+          if (error.status === HTTPError.SET_CHARGING_PROFILE_ERROR) {
+            Utils.handleHttpError(
+              error, this.router, this.messageService, this.centralServerService,
+              this.translateService.instant('chargers.smart_charging.power_limit_plan_not_accepted',
+                { chargeBoxID: this.chargingStation.id }));
+          } else {
+            Utils.handleHttpError(
+              error, this.router, this.messageService, this.centralServerService,
+              this.translateService.instant('chargers.smart_charging.power_limit_plan_error'));
+          }
+        });
+      }
+    });
+  }
+
+  private buildChargingProfile(): ChargingProfile {
+    // Instantiate new charging profile
+    const chargingProfile = {} as ChargingProfile;
+    chargingProfile.chargingStationID = this.chargingStation.id;
+    chargingProfile.chargePointID = 1;
+    // Set charging station ID and ConnectorID 0 for whole station
+    if (this.chargingProfilesControl.value) {
+      // Use selected
+      const selectedChargingProfile = this.chargingProfilesControl.value as ChargingProfile;
+      chargingProfile.id = selectedChargingProfile.id;
+      chargingProfile.connectorID = selectedChargingProfile.connectorID;
+    } else {
+      // Default
+      chargingProfile.connectorID = 0;
+    }
+    chargingProfile.profile = {} as Profile;
+    chargingProfile.profile.chargingSchedule = {} as ChargingSchedule;
+    // Set profile type
+    const profileType: ProfileType = this.profileTypeControl.value as ProfileType;
+    chargingProfile.profile.chargingProfileKind = profileType.chargingProfileKindType;
+    chargingProfile.profile.chargingProfileId = profileType.profileId;
+    chargingProfile.profile.stackLevel = profileType.stackLevel;
+    chargingProfile.profile.chargingProfilePurpose = ChargingProfilePurposeType.TX_DEFAULT_PROFILE;
+    if (profileType.chargingProfileKindType === ChargingProfileKindType.RECURRING &&
+      profileType.recurrencyKindType) {
+      chargingProfile.profile.recurrencyKind = profileType.recurrencyKindType;
+    }
+    // Set power unit
+    chargingProfile.profile.chargingSchedule.chargingRateUnit = ChargingRateUnitType.AMPERE;
+    // Build schedule
+    if (!Utils.isEmptyArray(this.scheduleEditableTableDataSource.data)) {
+      // Set start date
+      const startOfSchedule = new Date(this.scheduleEditableTableDataSource.data[0].startDate);
+      chargingProfile.profile.chargingSchedule.startSchedule = startOfSchedule;
+      // Instantiate chargingSchedulePeriods
+      chargingProfile.profile.chargingSchedule.chargingSchedulePeriod = [];
+      // Helper for duration
+      let duration = 0;
+      for (const schedule of this.scheduleEditableTableDataSource.getContent()) {
+        const period = {} as ChargingSchedulePeriod;
+        const startOfPeriod = new Date(schedule.startDate);
+        period.startPeriod = Math.round((startOfPeriod.getTime() - startOfSchedule.getTime()) / 1000);
+        period.limit = schedule.limit;
+        chargingProfile.profile.chargingSchedule.chargingSchedulePeriod.push(period);
+        duration = duration + schedule.duration * 60;
+      }
+      // Set duration
+      chargingProfile.profile.chargingSchedule.duration = duration;
+    }
+    return chargingProfile;
   }
 
   private loadProfile(chargingProfile: ChargingProfile) {
@@ -354,138 +497,5 @@ export class ChargingPlansComponent implements OnInit, AfterViewInit, OnChanges 
       // Set Chart
       this.currentChargingSchedules = schedules;
     }
-  }
-
-  public deleteChargingProfile() {
-    // Show yes/no dialog
-    this.dialogService.createAndShowYesNoDialog(
-      this.translateService.instant('chargers.smart_charging.clear_profile_title'),
-      this.translateService.instant('chargers.smart_charging.clear_profile_confirm', { chargeBoxID: this.chargingStation.id }),
-    ).subscribe((result) => {
-      if (result === ButtonType.YES) {
-        // Build charging profile
-        const chargingProfile = this.buildChargingProfile();
-        this.spinnerService.show();
-        this.centralServerService.deleteChargingProfile(chargingProfile.id).subscribe((response) => {
-          this.spinnerService.hide();
-          if (response.status === RestResponse.SUCCESS) {
-            // Remove from array
-            this.chargingProfiles = this.chargingProfiles.filter((exitingChargingProfile) => exitingChargingProfile.id !== chargingProfile.id);
-            this.messageService.showSuccessMessage(this.translateService.instant('chargers.smart_charging.clear_profile_success',
-              { chargeBoxID: this.chargingStation.id }));
-          } else {
-            Utils.handleError(JSON.stringify(response),
-              this.messageService, this.translateService.instant('chargers.smart_charging.clear_profile_error'));
-          }
-        }, (error: any) => {
-          this.spinnerService.hide();
-          if (error.status === HTTPError.CLEAR_CHARGING_PROFILE_NOT_SUCCESSFUL) {
-            Utils.handleHttpError(
-              error, this.router, this.messageService, this.centralServerService,
-              this.translateService.instant('chargers.smart_charging.clear_profile_not_accepted',
-                { chargeBoxID: this.chargingStation.id }));
-          } else {
-            Utils.handleHttpError(
-              error, this.router, this.messageService, this.centralServerService, 'chargers.smart_charging.clear_profile_error');
-          }
-        });
-      }
-    });
-  }
-
-  public saveAndApplyChargingProfile() {
-    // show yes/no dialog
-    this.dialogService.createAndShowYesNoDialog(
-      this.translateService.instant('chargers.smart_charging.power_limit_plan_title'),
-      this.translateService.instant('chargers.smart_charging.power_limit_plan_confirm', { chargeBoxID: this.chargingStation.id }),
-    ).subscribe((result) => {
-      if (result === ButtonType.YES) {
-        // Build charging profile
-        const chargingProfile = this.buildChargingProfile();
-        this.spinnerService.show();
-        this.centralServerService.updateChargingProfile(chargingProfile).subscribe((response) => {
-          this.spinnerService.hide();
-          if (response.status === RestResponse.SUCCESS) {
-            // Push new profile in array
-            const foundChargingProfile = this.chargingProfiles.find((exitingChargingProfile) => exitingChargingProfile.id === chargingProfile.id);
-            if (!foundChargingProfile) {
-              chargingProfile.id = response.id;
-              this.chargingProfilesControl.setValue(chargingProfile);
-              this.chargingProfiles.push(chargingProfile);
-            }
-            this.messageService.showSuccessMessage(
-              this.translateService.instant('chargers.smart_charging.power_limit_plan_success',
-                { chargeBoxID: this.chargingStation.id }));
-          } else {
-            Utils.handleError(JSON.stringify(response),
-              this.messageService, this.translateService.instant('chargers.smart_charging.power_limit_plan_error'));
-          }
-        }, (error) => {
-          this.spinnerService.hide();
-          if (error.status === HTTPError.SET_CHARGING_PROFILE_ERROR) {
-            Utils.handleHttpError(
-              error, this.router, this.messageService, this.centralServerService,
-              this.translateService.instant('chargers.smart_charging.power_limit_plan_not_accepted',
-                { chargeBoxID: this.chargingStation.id }));
-          } else {
-            Utils.handleHttpError(
-              error, this.router, this.messageService, this.centralServerService,
-              this.translateService.instant('chargers.smart_charging.power_limit_plan_error'));
-          }
-        });
-      }
-    });
-  }
-
-  private buildChargingProfile(): ChargingProfile {
-    // Instantiate new charging profile
-    const chargingProfile = {} as ChargingProfile;
-    chargingProfile.chargingStationID = this.chargingStation.id;
-    chargingProfile.chargePointID = 1;
-    // Set charging station ID and ConnectorID 0 for whole station
-    if (this.chargingProfilesControl.value) {
-      // Use selected
-      const selectedChargingProfile = this.chargingProfilesControl.value as ChargingProfile;
-      chargingProfile.id = selectedChargingProfile.id;
-      chargingProfile.connectorID = selectedChargingProfile.connectorID;
-    } else {
-      // Default
-      chargingProfile.connectorID = 0;
-    }
-    chargingProfile.profile = {} as Profile;
-    chargingProfile.profile.chargingSchedule = {} as ChargingSchedule;
-    // Set profile type
-    const profileType: ProfileType = this.profileTypeControl.value as ProfileType;
-    chargingProfile.profile.chargingProfileKind = profileType.chargingProfileKindType;
-    chargingProfile.profile.chargingProfileId = profileType.profileId;
-    chargingProfile.profile.stackLevel = profileType.stackLevel;
-    chargingProfile.profile.chargingProfilePurpose = ChargingProfilePurposeType.TX_DEFAULT_PROFILE;
-    if (profileType.chargingProfileKindType === ChargingProfileKindType.RECURRING &&
-      profileType.recurrencyKindType) {
-      chargingProfile.profile.recurrencyKind = profileType.recurrencyKindType;
-    }
-    // Set power unit
-    chargingProfile.profile.chargingSchedule.chargingRateUnit = ChargingRateUnitType.AMPERE;
-    // Build schedule
-    if (this.scheduleEditableTableDataSource.data.length > 0) {
-      // Set start date
-      const startOfSchedule = new Date(this.scheduleEditableTableDataSource.data[0].startDate);
-      chargingProfile.profile.chargingSchedule.startSchedule = startOfSchedule;
-      // Instantiate chargingSchedulePeriods
-      chargingProfile.profile.chargingSchedule.chargingSchedulePeriod = [];
-      // Helper for duration
-      let duration = 0;
-      for (const schedule of this.scheduleEditableTableDataSource.getContent()) {
-        const period = {} as ChargingSchedulePeriod;
-        const startOfPeriod = new Date(schedule.startDate);
-        period.startPeriod = Math.round((startOfPeriod.getTime() - startOfSchedule.getTime()) / 1000);
-        period.limit = schedule.limit;
-        chargingProfile.profile.chargingSchedule.chargingSchedulePeriod.push(period);
-        duration = duration + schedule.duration * 60;
-      }
-      // Set duration
-      chargingProfile.profile.chargingSchedule.duration = duration;
-    }
-    return chargingProfile;
   }
 }

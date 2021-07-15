@@ -21,6 +21,7 @@ export class ChargingStationConnectorComponent implements OnInit, OnChanges {
   @Input() public chargePoint!: ChargePoint;
   @Input() public formConnectorsArray: FormArray;
   @Input() public isAdmin!: boolean;
+  @Input() public manualConfiguration!: boolean;
   @Output() public connectorChanged = new EventEmitter<any>();
 
   public connectorTypeMap = CONNECTOR_TYPE_MAP;
@@ -57,13 +58,16 @@ export class ChargingStationConnectorComponent implements OnInit, OnChanges {
   public numberOfConnectedPhase!: AbstractControl;
   public currentType!: AbstractControl;
   public phaseAssignmentToGrid!: AbstractControl;
-  constructor(
+
+  // eslint-disable-next-line no-useless-constructor
+  public constructor(
     private dialog: MatDialog,
     private centralServerService: CentralServerService,
     private spinnerService: SpinnerService,
     private router: Router,
     private messageService: MessageService) {
   }
+
   public ngOnInit() {
     // Init connectors
     this.formConnectorGroup = new FormGroup({
@@ -126,8 +130,6 @@ export class ChargingStationConnectorComponent implements OnInit, OnChanges {
     this.currentType = this.formConnectorGroup.controls['currentType'];
     this.numberOfConnectedPhase = this.formConnectorGroup.controls['numberOfConnectedPhase'];
     this.phaseAssignmentToGrid = this.formConnectorGroup.controls['phaseAssignmentToGrid'];
-    this.power.disable();
-    this.amperage.disable();
     this.loadConnector();
     this.phaseAssignmentToGrid.enable();
     if (!this.isAdmin) {
@@ -170,9 +172,15 @@ export class ChargingStationConnectorComponent implements OnInit, OnChanges {
           phaseAssignmentToGrid);
       }
       this.amperagePerPhase.setValue((this.amperage.value as number) / (this.numberOfConnectedPhase.value as number));
-      if (this.chargePoint) {
+      if (this.chargePoint && !this.manualConfiguration) {
         this.formConnectorGroup.disable();
+        if (this.isAdmin) {
+          this.phaseAssignmentToGrid.enable();
+        }
       } else {
+        this.formConnectorGroup.enable();
+        this.power.disable();
+        this.amperage.disable();
         this.refreshPower();
         this.refreshNumberOfPhases();
       }
@@ -198,7 +206,6 @@ export class ChargingStationConnectorComponent implements OnInit, OnChanges {
       this.numberOfConnectedPhase.setValue(3);
       this.phaseAssignmentToGridMap = this.phaseAssignmentToGridMapThreePhased;
       this.phaseAssignmentToGrid.setValue(this.phaseAssignmentToGridMap[0].phaseAssignmentToGrid);
-      this.phaseAssignmentToGrid.disable();
       this.numberOfConnectedPhase.disable();
       this.amperage.updateValueAndValidity();
     } else {
@@ -239,9 +246,9 @@ export class ChargingStationConnectorComponent implements OnInit, OnChanges {
         dialogConfig.panelClass = 'transparent-dialog-container';
         // Set data
         dialogConfig.data = {
-          'qrCode': qrCode.image,
-          'connectorID': this.connector.connectorId,
-          'chargingStationID': this.chargingStation.id,
+          qrCode: qrCode.image,
+          connectorID: this.connector.connectorId,
+          chargingStationID: this.chargingStation.id,
         };
         // Disable outside click close
         dialogConfig.disableClose = true;

@@ -3,6 +3,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
 import { Observable } from 'rxjs';
+import { TransactionDialogComponent } from 'shared/dialogs/transaction/transaction.dialog.component';
 
 import { ChargingStationsConnectorInactivityCellComponent } from '../../../pages/charging-stations/cell-components/charging-stations-connector-inactivity-cell.component';
 import { AuthorizationService } from '../../../services/authorization.service';
@@ -11,7 +12,6 @@ import { DialogService } from '../../../services/dialog.service';
 import { MessageService } from '../../../services/message.service';
 import { SpinnerService } from '../../../services/spinner.service';
 import { ConsumptionChartDetailComponent } from '../../../shared/component/consumption-chart/consumption-chart-detail.component';
-import { AppConnectorErrorCodePipe } from '../../../shared/formatters/app-connector-error-code.pipe';
 import { AppUnitPipe } from '../../../shared/formatters/app-unit.pipe';
 import { AppUserNamePipe } from '../../../shared/formatters/app-user-name.pipe';
 import { TableChargingStationsStartTransactionAction, TableChargingStationsStartTransactionActionDef } from '../../../shared/table/actions/charging-stations/table-charging-stations-start-transaction-action';
@@ -20,13 +20,14 @@ import { TableChargingStationsUnlockConnectorAction, TableChargingStationsUnlock
 import { TableAutoRefreshAction } from '../../../shared/table/actions/table-auto-refresh-action';
 import { TableNoAction } from '../../../shared/table/actions/table-no-action';
 import { TableRefreshAction } from '../../../shared/table/actions/table-refresh-action';
-import { TableViewTransactionAction, TableViewTransactionActionDef } from '../../../shared/table/actions/transactions/table-view-transaction-action';
+import { TableViewTransactionAction, TableViewTransactionActionDef, TransactionDialogData } from '../../../shared/table/actions/transactions/table-view-transaction-action';
 import { TableDataSource } from '../../../shared/table/table-data-source';
 import { ChargePointStatus, ChargingStation, ChargingStationButtonAction, Connector } from '../../../types/ChargingStation';
 import { DataResult } from '../../../types/DataResult';
 import { TableActionDef, TableColumnDef, TableDef } from '../../../types/Table';
 import { TransactionButtonAction } from '../../../types/Transaction';
 import { User } from '../../../types/User';
+import { Utils } from '../../../utils/Utils';
 import { ChargingStationsConnectorCellComponent } from '../cell-components/charging-stations-connector-cell.component';
 import { ChargingStationsConnectorStatusCellComponent } from '../cell-components/charging-stations-connector-status-cell.component';
 import { ChargingStationsInstantPowerConnectorProgressBarCellComponent } from '../cell-components/charging-stations-instant-power-connector-progress-bar-cell.component';
@@ -41,7 +42,7 @@ export class ChargingStationsConnectorsDetailTableDataSource extends TableDataSo
 
   private chargingStation!: ChargingStation;
 
-  constructor(
+  public constructor(
     public spinnerService: SpinnerService,
     public translateService: TranslateService,
     private centralServerService: CentralServerService,
@@ -67,11 +68,11 @@ export class ChargingStationsConnectorsDetailTableDataSource extends TableDataSo
       // Return connector
       if (this.chargingStation) {
         this.chargingStation.connectors.forEach((connector) => {
-          // tslint:disable-next-line:max-line-length
+          // eslint-disable-next-line max-len
           connector.isStopAuthorized = !!connector.currentTransactionID && this.authorizationService.canStopTransaction(this.chargingStation.siteArea, connector.currentTagID);
-          // tslint:disable-next-line:max-line-length
+          // eslint-disable-next-line max-len
           connector.isStartAuthorized = !connector.currentTransactionID && this.authorizationService.canStartTransaction(this.chargingStation.siteArea);
-          // tslint:disable-next-line:max-line-length
+          // eslint-disable-next-line max-len
           connector.isTransactionDisplayAuthorized = this.authorizationService.canReadTransaction(this.chargingStation.siteArea, connector.currentTagID);
           connector.hasDetails = !!connector.currentTransactionID && connector.isTransactionDisplayAuthorized;
         });
@@ -130,6 +131,14 @@ export class ChargingStationsConnectorsDetailTableDataSource extends TableDataSo
         sortable: false,
       },
       {
+        id: 'info',
+        name: 'chargers.connector_info_title',
+        headerClass: 'text-center col-15em',
+        class: 'text-center col-15em',
+        formatter: (info: string, row: Connector) => Utils.buildConnectorInfo(row),
+        sortable: false,
+      },
+      {
         id: 'currentInstantWatts',
         name: 'chargers.consumption_title',
         headerClass: 'text-center col-20p',
@@ -162,22 +171,7 @@ export class ChargingStationsConnectorsDetailTableDataSource extends TableDataSo
         class: 'text-left col-20p',
         formatter: (user: User) => this.appUserNamePipe.transform(user),
       },
-      {
-        id: 'errorCode',
-        name: 'chargers.connector_error_title',
-        headerClass: 'col-15em',
-        class: 'col-15em',
-        formatter: (errorCode: string, row: Connector) => this.formatError(errorCode, row.info, row.vendorErrorCode),
-        sortable: false,
-      },
     ];
-  }
-
-  public formatError(errorCode: string, info: string | undefined, vendorErrorCode: string | undefined) {
-    errorCode = new AppConnectorErrorCodePipe(this.translateService).transform(errorCode);
-    info = info && info !== '' ? ` > ${info}` : '';
-    vendorErrorCode = vendorErrorCode && vendorErrorCode !== '' && vendorErrorCode !== '0' ? ` (${vendorErrorCode})` : '';
-    return `${errorCode}${info}${vendorErrorCode}`;
   }
 
   public buildTableActionsRightDef(): TableActionDef[] {
@@ -205,7 +199,7 @@ export class ChargingStationsConnectorsDetailTableDataSource extends TableDataSo
         actions.push(unlockConnectorAction);
       }
     }
-    if (actions.length > 0) {
+    if (!Utils.isEmptyArray(actions)) {
       return actions;
     }
     // By default no actions
@@ -247,11 +241,14 @@ export class ChargingStationsConnectorsDetailTableDataSource extends TableDataSo
           return;
         }
         if (actionDef.action) {
-          (actionDef as TableViewTransactionActionDef).action({
-            transactionID: connector.currentTransactionID,
-            chargingStationID: this.chargingStation.id,
-            connectorID: connector.connectorId,
-          }, this.dialog, this.refreshData.bind(this));
+          (actionDef as TableViewTransactionActionDef).action(TransactionDialogComponent, this.dialog, {
+            dialogData: {
+              transactionID: connector.currentTransactionID,
+              chargingStationID: this.chargingStation.id,
+              connectorID: connector.connectorId
+            } as TransactionDialogData
+          },
+          this.refreshData.bind(this));
         }
         break;
       // Unlock Charger

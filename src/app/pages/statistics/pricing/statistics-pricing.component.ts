@@ -1,5 +1,6 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { TranslateService } from '@ngx-translate/core';
+import { ChartData } from 'chart.js';
 
 import { CentralServerService } from '../../../services/central-server.service';
 import { ComponentService } from '../../../services/component.service';
@@ -13,7 +14,7 @@ import { UserTableFilter } from '../../../shared/table/filters/user-table-filter
 import { FilterParams } from '../../../types/GlobalType';
 import { TableFilterDef } from '../../../types/Table';
 import TenantComponents from '../../../types/TenantComponents';
-import { ChartData, SimpleChart } from '../shared/chart-utilities';
+import { SimpleChart } from '../shared/chart-utilities';
 import { StatisticsBuildService, StatisticsBuildValueWithUnit } from '../shared/statistics-build.service';
 import { StatisticsExportService } from '../shared/statistics-export.service';
 
@@ -23,6 +24,9 @@ import { StatisticsExportService } from '../shared/statistics-export.service';
 })
 
 export class StatisticsPricingComponent implements OnInit {
+  @ViewChild('pricingBarChart', { static: true }) public ctxBarChart!: ElementRef;
+  @ViewChild('pricingPieChart', { static: true }) public ctxPieChart!: ElementRef;
+
   public isPricingActive = false;
 
   public selectedChart!: string;
@@ -33,9 +37,6 @@ export class StatisticsPricingComponent implements OnInit {
   public allFiltersDef: TableFilterDef[] = [];
   public chartsInitialized = false;
 
-  @ViewChild('pricingBarChart', { static: true }) public ctxBarChart!: ElementRef;
-  @ViewChild('pricingPieChart', { static: true }) public ctxPieChart!: ElementRef;
-
   private filterParams!: FilterParams;
   private barChart!: SimpleChart;
   private pieChart!: SimpleChart;
@@ -44,7 +45,7 @@ export class StatisticsPricingComponent implements OnInit {
   private totalPriceWithUnit: StatisticsBuildValueWithUnit[] = [];
   private language!: string;
 
-  constructor(
+  public constructor(
     private centralServerService: CentralServerService,
     private componentService: ComponentService,
     private translateService: TranslateService,
@@ -214,9 +215,7 @@ export class StatisticsPricingComponent implements OnInit {
       this.centralServerService.getChargingStationPricingStatistics(this.selectedYear, this.filterParams)
         .subscribe((statisticsData) => {
 
-          if (statisticsData.length > 1) {
-            this.totalPriceWithUnit = this.statisticsBuildService.calculateTotalsWithUnits(statisticsData, 2);
-          }
+          this.totalPriceWithUnit = this.statisticsBuildService.calculateTotalsWithUnits(statisticsData, 2);
 
           if (this.totalPriceWithUnit.length > 1) {
             addUnitToLabel = true;

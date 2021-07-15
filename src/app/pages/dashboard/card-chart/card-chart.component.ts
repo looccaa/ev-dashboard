@@ -1,5 +1,6 @@
-import { AnimationEvent, animate, group, query, sequence, style, transition, trigger } from '@angular/animations';
-import { AfterViewChecked, AfterViewInit, Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
+import { AnimationEvent, animate, group, query, style, transition, trigger } from '@angular/animations';
+import { AfterViewInit, Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
+import { ChartData } from 'chart.js';
 
 const DEFAULT_CHART_INTERVAL = 5000;
 
@@ -20,6 +21,7 @@ export interface ChartButton {
   /**
    * Text displayed for the button.
    * It can be a i18n entry.
+   *
    * @type {string}
    * @memberof ChartButton
    */
@@ -31,17 +33,6 @@ export interface ChartButton {
    * @memberof ChartButton
    */
   chart?: ChartDefinition;
-}
-
-/**
- * data and labels of a chart.
- * See chartjs for further details.
- * @export
- * @interface ChartData
- */
-export interface ChartData {
-  datasets: [];
-  labels: [];
 }
 
 /**
@@ -122,6 +113,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    *
    * Gives the list of buttons to be displayed and associate to each button the chart data (options + data) according to Chartjs
+   *
    * @type {ChartButton[]}
    * @memberof CardChartComponent
    */
@@ -144,6 +136,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
    *
    * Title text of the card on top right corner.
    * It can be a reference to i18n entry.
+   *
    * @type {string}
    * @memberof CardChartComponent
    */
@@ -152,6 +145,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
    *
    * Footer text of the card.
    * * It can be a reference to i18n entry.
+   *
    * @type {string}
    * @memberof CardChartComponent
    */
@@ -160,6 +154,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    *
    * interval in ms between rotation of chart within the card
+   *
    * @type {number}
    * @memberof CardChartComponent
    */
@@ -169,6 +164,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
    *
    * Additional class card.
    * It can be used to change the card style
+   *
    * @type {string}
    * @memberof CardChartComponent
    */
@@ -176,6 +172,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    *
    * Additional header class
+   *
    * @type {string}
    * @memberof CardChartComponent
    */
@@ -183,6 +180,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    *
    * Additional title class
+   *
    * @type {string}
    * @memberof CardChartComponent
    */
@@ -190,6 +188,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    *
    * Additional category class
+   *
    * @type {string}
    * @memberof CardChartComponent
    */
@@ -197,6 +196,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    *
    * Additional body class
+   *
    * @type {string}
    * @memberof CardChartComponent
    */
@@ -232,7 +232,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   public rotationIntervalReference;
 
   /**
-   * Curretn active button in the card
+   * Current active button in the card
    *
    * @type {ChartButton}
    * @memberof CardChartComponent
@@ -256,7 +256,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
    *
    * @memberof CardChartComponent
    */
-  public secondChart = {
+  public secondChart: ChartDataLocal = {
     chartData: { options: [], data: { datasets: [], labels: [] } },
     isDisplayed: false,
   };
@@ -265,6 +265,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
    * Indicate in which direction the change occur
    * If true the animation wil go from first to second DOM element
    * If false the animation wil go from second to first DOM element
+   *
    * @memberof CardChartComponent
    */
   public changeFromFirstToSecond = false;
@@ -304,7 +305,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    * Used to refresh data from parent component
    *
-   * @param {ChartButton[]} chartButtons
+   * @param chartButtons
    * @memberof CardChartComponent
    */
   public setData(chartButtons: ChartButton[]) {
@@ -326,7 +327,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    * Start the rotation of the charts
    *
-   * @param {ChartButton} [startingButton] Define the starting button to use when rotation start
+   * @param [startingButton] Define the starting button to use when rotation start
    * @memberof CardChartComponent
    */
   public startRotation(startingButton?: ChartButton) {
@@ -343,7 +344,8 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    * Move to next chart except if chartName is provided
    * When chartName is provided, it is considered as a manual action so no animation is done
-   * @param {*} [chartName=null] name of teh chart button to display
+   *
+   * @param [chartName=null] name of teh chart button to display
    * @memberof CardChartComponent
    */
   public nextChart(chartName = null) {
@@ -379,7 +381,7 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    * Animation done event for ChartFade
    *
-   * @param {AnimationEvent} [event]
+   * @param [event]
    * @memberof CardChartComponent
    */
   public chartFadeOutComplete(event?: AnimationEvent) {
@@ -409,13 +411,13 @@ export class CardChartComponent implements OnInit, AfterViewInit, OnDestroy {
       this.firstChart.chartData = chartDefinition;
     } else {
       if (!this.changeFromFirstToSecond) {
-        if (manualChange) { // do not rotate screens
+        if (manualChange) { // Do not rotate screens
           this.firstChart.chartData = chartDefinition;
         } else {
           this.secondChart.chartData = chartDefinition;
         }
       } else {
-        if (manualChange) { // do not rotate screens
+        if (manualChange) { // Do not rotate screens
           this.secondChart.chartData = chartDefinition;
         } else {
           this.firstChart.chartData = chartDefinition;
